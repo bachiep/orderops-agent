@@ -21,8 +21,13 @@ from orderops.agent.schemas import (
     TriageResolution,
 )
 from orderops.config import Settings
+from orderops.guardrails.input_guard import evaluate_input_guardrail
+from orderops.guardrails.output_guard import reconcile_triage_resolution
+from orderops.guardrails.pii import get_structured_logger
 from orderops.prompts.triage_agent_v1 import SYSTEM_PROMPT, estimate_cost_usd
 from orderops.tools.registry import ToolRegistry
+
+logger = get_structured_logger("orderops.agent")
 
 
 def _summarize_tool_output(output: dict[str, Any]) -> dict[str, Any]:
@@ -141,10 +146,52 @@ class AgentRunner:
         if request.customer_email and request.customer_email not in user_text:
             user_text = f"{user_text}\n[customer_email: {request.customer_email}]"
 
+        input_guard = evaluate_input_guardrail(
+            user_text,
+            max_input_chars=self.settings.max_input_chars,
+        )
+        logger.info(
+            "Agent run started",
+            extra={
+                "structured_data": {
+                    "run_id": run_id,
+                    "guard_allowed": input_guard.allowed,
+                    "flags": input_guard.flags,
+                    "preview": input_guard.masked_preview,
+                }
+            },
+        )
         yield AgentStreamEvent(
             event="guardrail_check",
-            data={"layer": "input", "passed": True, "flags": []},
+            data={
+                "layer": "input",
+                "passed": input_guard.allowed,
+                "flags": input_guard.flags,
+                "masked_preview": input_guard.masked_preview,
+            },
         )
+        if not input_guard.allowed:
+            elapsed_ms = (time.perf_counter() - started) * 1000.0
+            blocked = TriageResolution(
+                run_id=run_id,
+                intent="BLOCKED_ADVERSARIAL",
+                summary=input_guard.reason or "Request blocked by input guardrail.",
+                tool_trace=[],
+                resolution_status="BLOCKED_GUARDRAIL",
+                refund_id=None,
+                requires_human_review=False,
+                guardrail_flags=input_guard.flags,
+                latency_ms=round(elapsed_ms, 2),
+                token_usage=TokenUsage(),
+                estimated_cost_usd=0.0,
+            )
+            for delta in _chunk_text(blocked.summary):
+                yield AgentStreamEvent(event="assistant_delta", data={"delta": delta})
+            yield AgentStreamEvent(
+                event="run_completed",
+                data=blocked.model_dump(mode="json"),
+            )
+            return
 
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
@@ -152,7 +199,7 @@ class AgentRunner:
         ]
         tool_schemas = self.registry.get_openai_tools_schema()
         tool_trace: list[ToolTraceStep] = []
-        guardrail_flags: list[str] = []
+        guardrail_flags: list[str] = list(input_guard.flags)
         failed_call_counts: dict[tuple[str, str], int] = {}
         prompt_tokens = 0
         completion_tokens = 0
@@ -199,7 +246,7 @@ class AgentRunner:
                     total_tokens=prompt_tokens + completion_tokens,
                 )
                 cost = estimate_cost_usd(prompt_tokens, completion_tokens, model_name)
-                resolution = _parse_model_resolution(
+                raw_resolution = _parse_model_resolution(
                     model_resp.content,
                     run_id=run_id,
                     tool_trace=tool_trace,
@@ -208,6 +255,7 @@ class AgentRunner:
                     token_usage=usage,
                     estimated_cost_usd=cost,
                 )
+                resolution = reconcile_triage_resolution(raw_resolution, tool_trace)
                 for delta in _chunk_text(resolution.summary):
                     yield AgentStreamEvent(event="assistant_delta", data={"delta": delta})
                 yield AgentStreamEvent(
