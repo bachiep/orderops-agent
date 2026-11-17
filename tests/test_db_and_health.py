@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import sqlite3
+import subprocess
+import sys
 from pathlib import Path
 
 import httpx
@@ -97,3 +99,38 @@ async def test_health_endpoint_returns_table_counts(tmp_path: Path) -> None:
         assert payload["llm_provider"] == "local"
         assert payload["table_counts"]["orders"] == 12
         assert payload["table_counts"]["customers"] == 5
+
+
+@pytest.mark.parametrize(
+    "module_name",
+    [
+        "orderops.db",
+        "orderops.db.audit",
+        "orderops.tools",
+        "orderops.guardrails",
+        "orderops.agent",
+        "orderops.api.main",
+        "orderops.ui.app",
+    ],
+)
+def test_cold_module_imports_have_no_circular_dependencies(module_name: str) -> None:
+    proc = subprocess.run(
+        [sys.executable, "-c", f"import {module_name}"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, f"Failed importing {module_name}: {proc.stderr}"
+
+
+def test_seed_demo_db_cli_runs_cleanly_in_fresh_subprocess(tmp_path: Path) -> None:
+    db_path = tmp_path / "cli_seed.db"
+    proc = subprocess.run(
+        [sys.executable, "-m", "scripts.seed_demo_db", "--db-path", str(db_path)],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    assert proc.returncode == 0, proc.stderr
+    assert "Seeded SQLite database" in proc.stdout
+    assert db_path.exists()

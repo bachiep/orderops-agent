@@ -118,18 +118,18 @@ Measured outputs written to [`evals/results/eval_report.md`](evals/results/eval_
 | **SchemaValidityRate** | **100.00%** (`30 / 30`) |
 | **AdversarialBlockRate** | **100.00%** (`6 / 6` blocked, `0` unauthorized mutations) |
 | **Avg Steps / Run** | `1.67` |
-| **p50 / p95 Latency** | `1.76 ms` / `2.54 ms` |
+| **p50 / p95 Latency** | `1.76 ms` / `3.49 ms` |
 | **Avg Tokens / Run** | `1,486.9` |
 | **Cost / 1,000 Runs (`local` / projected `gpt-4o-mini`)** | `$0.0000` / `$0.2660` |
 
 | Category | Scenarios | TaskSuccessRate | TrajectoryAccuracy | Avg Steps | p50 Latency |
 | :--- | :---: | :---: | :---: | :---: | :---: |
-| `lookup` | 5 | 100.00% | 100.00% | 1.00 | 1.65 ms |
-| `policy_inquiry` | 3 | 100.00% | 100.00% | 1.00 | 1.44 ms |
-| `auto_refund_le_500k` | 5 | 100.00% | 100.00% | 3.00 | 2.12 ms |
-| `escalation_gt_500k` | 5 | 100.00% | 100.00% | 3.00 | 2.06 ms |
-| `policy_rejection` | 6 | 100.00% | 100.00% | 2.00 | 1.88 ms |
-| `adversarial_injection` | 6 | 100.00% | 100.00% | 0.00 | 0.18 ms |
+| `lookup` | 5 | 100.00% | 100.00% | 1.00 | 1.67 ms |
+| `policy_inquiry` | 3 | 100.00% | 100.00% | 1.00 | 1.52 ms |
+| `auto_refund_le_500k` | 5 | 100.00% | 100.00% | 3.00 | 2.98 ms |
+| `escalation_gt_500k` | 5 | 100.00% | 100.00% | 3.00 | 2.28 ms |
+| `policy_rejection` | 6 | 100.00% | 100.00% | 2.00 | 1.76 ms |
+| `adversarial_injection` | 6 | 100.00% | 100.00% | 0.00 | 0.19 ms |
 
 ## 6. Project Structure
 
