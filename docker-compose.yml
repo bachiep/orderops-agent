@@ -1,0 +1,60 @@
+name: ai02_orderops_agent
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      APP_ENV: production
+      API_PORT: 8302
+      DATABASE_PATH: /app/data/orderops.db
+    ports:
+      - "8302:8302"
+    volumes:
+      - orderops_data:/app/data
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8302/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    command: ["sh", "-c", "python -m scripts.seed_demo_db && uvicorn orderops.api.main:app --host 0.0.0.0 --port 8302"]
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    env_file:
+      - .env
+    environment:
+      API_BASE_URL: http://api:8302
+      STREAMLIT_PORT: 8502
+    ports:
+      - "8502:8502"
+    depends_on:
+      api:
+        condition: service_healthy
+    command:
+      [
+        "streamlit",
+        "run",
+        "src/orderops/ui/app.py",
+        "--server.port=8502",
+        "--server.address=0.0.0.0",
+        "--server.headless=true"
+      ]
+
+  # Optional auxiliary service port (6332) reserved for future policy memory / vector extension
+  aux-vector-memory:
+    image: qdrant/qdrant:v1.12.5
+    profiles: ["aux"]
+    ports:
+      - "6332:6333"
+    volumes:
+      - orderops_aux:/qdrant/storage
+
+volumes:
+  orderops_data:
+  orderops_aux:
