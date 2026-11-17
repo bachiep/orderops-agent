@@ -13,7 +13,8 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "INSTRUCTION_OVERRIDE",
         re.compile(
             r"\b(?:ignore|disregard|forget|override)\s+"
-            r"(?:all\s+|previous\s+|prior\s+|above\s+|your\s+|system\s+)*"
+            r"(?:all\s+|previous\s+|prior\s+|above\s+|your\s+|system\s+|"
+            r"return\s+|refund\s+|company\s+|safety\s+)*"
             r"(?:instructions?|rules?|policies|policy|guidelines|prompts?)\b",
             re.IGNORECASE,
         ),
@@ -22,7 +23,7 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "POLICY_BYPASS_EN",
         re.compile(
             r"\b(?:bypass|skip|disable|override|circumvent)\s+"
-            r"(?:the\s+|all\s+|any\s+)*"
+            r"(?:the\s+|all\s+|any\s+|return\s+|refund\s+)*"
             r"(?:14[- ]?day|return\s+window|eligibility|policy|policies|guardrails?|"
             r"approval|human\s+review|limits?|checks?)\b",
             re.IGNORECASE,
@@ -31,7 +32,7 @@ _INJECTION_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     (
         "FORCE_AUTO_APPROVE_EN",
         re.compile(
-            r"\b(?:force|mark|set|approve)\b.{0,28}\bauto[_ -]?approv(?:e|ed|al)\b|"
+            r"\b(?:force|mark|set|approve)\b.{0,80}\bauto[_ -]?approv(?:e|ed|al)\b|"
             r"\b(?:without|no)\s+human\s+(?:approval|review)\b",
             re.IGNORECASE,
         ),
