@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
-from orderops.agent.schemas import AgentRunRequest, TriageResolution
 from orderops.db.database import DatabaseManager
 from orderops.guardrails.pii import mask_email, redact_pii
+
+if TYPE_CHECKING:
+    from orderops.agent.schemas import AgentRunRequest, TriageResolution
 
 
 def persist_agent_run(
