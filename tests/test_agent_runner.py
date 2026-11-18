@@ -223,3 +223,57 @@ async def test_openai_and_gemini_providers_retry_transient_503() -> None:
     gem_resp = await gem.complete([{"role": "user", "content": "check"}], [])
     assert attempts["gemini"] == 2
     assert gem_resp.tool_calls[0].arguments == {"order_id": "ORD-1002"}
+
+
+async def test_local_planner_resolves_multi_turn_followup_from_history() -> None:
+    db, runner = _make_runner(LocalPlannerLLMProvider())
+    try:
+        history = [
+            {"role": "user", "content": "Check status of order ORD-1002."},
+            {
+                "role": "assistant",
+                "content": (
+                    "Order ORD-1002 (Wireless Noise-Canceling Headphones, 1,850,000 VND) "
+                    "is currently DELIVERED."
+                ),
+            },
+        ]
+        res = await runner.run(
+            AgentRunRequest(
+                message="Please refund it because the left earcup is defective.",
+                session_id="sess-followup-1",
+            ),
+            history=history,
+        )
+        assert res.session_id == "sess-followup-1"
+        assert res.intent == "REFUND_REQUEST"
+        assert res.resolution_status == "PENDING_HUMAN_APPROVAL"
+        assert res.requires_human_review is True
+        assert [step.tool_name for step in res.tool_trace] == [
+            "get_order_details",
+            "evaluate_refund_eligibility",
+            "create_refund_request",
+        ]
+    finally:
+        db.close()
+
+
+async def test_local_planner_policy_inquiry_in_followup_does_not_hijack_prior_order() -> None:
+    db, runner = _make_runner(LocalPlannerLLMProvider())
+    try:
+        history = [
+            {"role": "user", "content": "Check status of order ORD-1002."},
+            {"role": "assistant", "content": "Order ORD-1002 is DELIVERED."},
+        ]
+        res = await runner.run(
+            AgentRunRequest(
+                message="What is the return policy for perishable_food items?",
+                session_id="sess-followup-2",
+            ),
+            history=history,
+        )
+        assert res.intent == "POLICY_INQUIRY"
+        assert res.resolution_status == "RESOLVED_INFO"
+        assert [step.tool_name for step in res.tool_trace] == ["lookup_return_policy"]
+    finally:
+        db.close()

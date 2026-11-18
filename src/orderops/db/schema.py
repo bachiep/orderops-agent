@@ -58,16 +58,19 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         reason_code TEXT NOT NULL,
         reason_detail TEXT NOT NULL,
         status TEXT NOT NULL CHECK (
-            status IN ('AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL', 'REJECTED')
+            status IN ('AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL', 'APPROVED', 'REJECTED')
         ),
         requires_human_review INTEGER NOT NULL CHECK (requires_human_review IN (0, 1)),
-        created_at TEXT NOT NULL
+        created_at TEXT NOT NULL,
+        reviewed_at TEXT,
+        reviewer_note TEXT,
+        reviewer_id TEXT
     );
     """,
     """
     CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_refund_order
     ON refund_requests(order_id)
-    WHERE status IN ('AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL');
+    WHERE status IN ('AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL', 'APPROVED');
     """,
     """
     CREATE INDEX IF NOT EXISTS idx_orders_customer_id
@@ -91,5 +94,39 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         estimated_cost_usd REAL NOT NULL,
         created_at TEXT NOT NULL
     );
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS session_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        run_id TEXT REFERENCES agent_runs(run_id) ON DELETE SET NULL,
+        role TEXT NOT NULL CHECK (role IN ('user', 'assistant')),
+        content_masked TEXT NOT NULL,
+        intent TEXT,
+        resolution_status TEXT,
+        refund_id TEXT,
+        created_at TEXT NOT NULL
+    );
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_session_messages_session_created
+    ON session_messages(session_id, created_at ASC, id ASC);
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS refund_audit_logs (
+        audit_id TEXT PRIMARY KEY,
+        refund_id TEXT NOT NULL REFERENCES refund_requests(refund_id) ON DELETE RESTRICT,
+        order_id TEXT NOT NULL REFERENCES orders(order_id) ON DELETE RESTRICT,
+        decision TEXT NOT NULL CHECK (decision IN ('APPROVE', 'REJECT')),
+        previous_status TEXT NOT NULL,
+        new_status TEXT NOT NULL,
+        reviewer_id TEXT NOT NULL,
+        reviewer_note_masked TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
+    """,
+    """
+    CREATE INDEX IF NOT EXISTS idx_refund_audit_logs_refund_id
+    ON refund_audit_logs(refund_id, created_at DESC);
     """,
 )

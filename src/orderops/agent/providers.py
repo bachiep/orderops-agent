@@ -160,13 +160,30 @@ class LocalPlannerLLMProvider(AgentModelProvider):
         messages: list[dict[str, Any]],
         tools: list[dict[str, Any]],
     ) -> ModelResponse:
-        user_messages = [m["content"] for m in messages if m.get("role") == "user"]
-        latest_user = str(user_messages[-1]) if user_messages else ""
+        last_user_idx = max(
+            (i for i, m in enumerate(messages) if m.get("role") == "user"),
+            default=-1,
+        )
+        latest_user = str(messages[last_user_idx]["content"]) if last_user_idx >= 0 else ""
+        prior_messages = (
+            [m for m in messages[:last_user_idx] if m.get("role") in ("user", "assistant")]
+            if last_user_idx > 0
+            else []
+        )
         prompt_tokens = sum(estimate_tokens(json.dumps(m, ensure_ascii=False)) for m in messages)
 
         tool_history = _collect_tool_history(messages)
-        order_match = _ORDER_ID_RE.search(latest_user)
-        order_id = order_match.group(1).upper() if order_match else None
+        explicit_order_match = _ORDER_ID_RE.search(latest_user)
+        explicit_order_id = (
+            explicit_order_match.group(1).upper() if explicit_order_match else None
+        )
+        prior_order_id: str | None = None
+        for prior_msg in reversed(prior_messages):
+            match = _ORDER_ID_RE.search(str(prior_msg.get("content", "")))
+            if match:
+                prior_order_id = match.group(1).upper()
+                break
+
         email_match = _EMAIL_RE.search(latest_user)
         email = email_match.group(0).lower() if email_match else None
 
@@ -185,8 +202,10 @@ class LocalPlannerLLMProvider(AgentModelProvider):
         )
         action_keywords = ("refund", "hoàn tiền", "trả hàng", "process", "tạo")
         is_policy = any(kw in lower for kw in policy_keywords) and not (
-            order_id and any(k in lower for k in action_keywords)
+            explicit_order_id and any(k in lower for k in action_keywords)
         )
+
+        order_id = explicit_order_id or (None if email is not None else prior_order_id)
 
         # Resolve order_id from list_customer_orders if customer only gave email
         listed_res = next(
@@ -217,7 +236,7 @@ class LocalPlannerLLMProvider(AgentModelProvider):
                 model_name=self.model_name,
             )
 
-        if is_policy and not is_refund or (is_policy and order_id is None):
+        if (is_policy and not is_refund) or (is_policy and explicit_order_id is None):
             policy_res = next((out for n, out in tool_history if n == "lookup_return_policy"), None)
             if policy_res is None:
                 return _respond_tool(
@@ -311,6 +330,13 @@ class LocalPlannerLLMProvider(AgentModelProvider):
                 )
 
             reason_code = _extract_reason_code(latest_user)
+            if reason_code == "defective":
+                for prior_msg in reversed(prior_messages):
+                    if prior_msg.get("role") == "user":
+                        prior_reason = _extract_reason_code(str(prior_msg.get("content", "")))
+                        if prior_reason != "defective":
+                            reason_code = prior_reason
+                            break
             elig_res = next(
                 (out for n, out in tool_history if n == "evaluate_refund_eligibility"),
                 None,

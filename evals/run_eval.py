@@ -11,6 +11,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+from pydantic import BaseModel
+
 from orderops.agent import (
     AgentRunner,
     AgentRunRequest,
@@ -27,17 +29,35 @@ DEFAULT_SCENARIOS_PATH = Path(__file__).resolve().parent / "scenarios.jsonl"
 DEFAULT_RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
 
+class EvalScenarioResult(BaseModel):
+    """Per-scenario structured evaluation result persisted for UI drilldown."""
+
+    id: str
+    category: str
+    prompt: str
+    expected_decision: str
+    actual_decision: str
+    tools_called: list[str]
+    guardrail_blocked: bool
+    passed: bool
+    latency_ms: float
+
+
 @dataclass
 class ScenarioOutcome:
     """Measured evaluation outcome for a single scenario."""
 
     scenario_id: str
     category: str
+    prompt: str
+    expected_decision: str
     task_success: bool
     trajectory_match: bool
     schema_valid: bool
+    policy_compliant: bool
     adversarial: bool
     adversarial_blocked: bool | None
+    guardrail_blocked: bool
     steps_taken: int
     latency_ms: float
     total_tokens: int
@@ -46,6 +66,20 @@ class ScenarioOutcome:
     actual_tools: list[str]
     actual_status: str
     failure_reason: str | None = None
+
+    def to_scenario_result(self) -> EvalScenarioResult:
+        """Convert internal outcome into the public EvalScenarioResult schema."""
+        return EvalScenarioResult(
+            id=self.scenario_id,
+            category=self.category,
+            prompt=self.prompt,
+            expected_decision=self.expected_decision,
+            actual_decision=self.actual_status,
+            tools_called=list(self.actual_tools),
+            guardrail_blocked=self.guardrail_blocked,
+            passed=self.task_success,
+            latency_ms=round(self.latency_ms, 2),
+        )
 
 
 def load_scenarios(path: Path = DEFAULT_SCENARIOS_PATH) -> list[dict[str, Any]]:
@@ -111,6 +145,19 @@ async def evaluate_scenarios(
                     and resolution.resolution_status in ("BLOCKED_GUARDRAIL", "REJECTED_POLICY")
                 )
 
+            guardrail_blocked = resolution.resolution_status == "BLOCKED_GUARDRAIL"
+            policy_compliant = (
+                schema_valid
+                and (adv_blocked if is_adv else True)
+                and (
+                    resolution.resolution_status == item["expected_status"]
+                    if item["expected_status"]
+                    in ("REJECTED_POLICY", "PENDING_HUMAN_APPROVAL", "BLOCKED_GUARDRAIL")
+                    else True
+                )
+                and resolution.requires_human_review == bool(item["expected_human_review"])
+            )
+
             task_success = (
                 schema_valid
                 and trajectory_match
@@ -131,11 +178,15 @@ async def evaluate_scenarios(
                 ScenarioOutcome(
                     scenario_id=item["id"],
                     category=item["category"],
+                    prompt=item["message"],
+                    expected_decision=item["expected_status"],
                     task_success=task_success,
                     trajectory_match=trajectory_match,
                     schema_valid=schema_valid,
+                    policy_compliant=policy_compliant,
                     adversarial=is_adv,
                     adversarial_blocked=adv_blocked,
+                    guardrail_blocked=guardrail_blocked,
                     steps_taken=len(resolution.tool_trace),
                     latency_ms=resolution.latency_ms,
                     total_tokens=resolution.token_usage.total_tokens,
@@ -185,12 +236,17 @@ async def evaluate_scenarios(
             "p50_latency_ms": _percentile([o.latency_ms for o in cat_items], 0.50),
         }
 
+    trajectory_acc = round(
+        sum(1 for o in outcomes if o.trajectory_match) / total * 100.0, 2
+    )
     summary: dict[str, Any] = {
         "provider": active_settings.llm_provider,
         "total_scenarios": total,
         "task_success_rate": round(sum(1 for o in outcomes if o.task_success) / total * 100.0, 2),
-        "tool_trajectory_accuracy": round(
-            sum(1 for o in outcomes if o.trajectory_match) / total * 100.0, 2
+        "tool_trajectory_accuracy": trajectory_acc,
+        "tool_selection_accuracy": trajectory_acc,
+        "policy_compliance_rate": round(
+            sum(1 for o in outcomes if o.policy_compliant) / total * 100.0, 2
         ),
         "schema_validity_rate": round(
             sum(1 for o in outcomes if o.schema_valid) / total * 100.0, 2
@@ -259,16 +315,35 @@ def render_markdown_report(summary: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def write_per_scenario_results(
+    outcomes: list[ScenarioOutcome],
+    results_dir: Path = DEFAULT_RESULTS_DIR,
+) -> Path:
+    """Write per-scenario evaluation results JSON into evals/results/."""
+    results_dir.mkdir(parents=True, exist_ok=True)
+    per_scenario_path = results_dir / "per_scenario_results.json"
+    serialized = [o.to_scenario_result().model_dump(mode="json") for o in outcomes]
+    per_scenario_path.write_text(
+        json.dumps(serialized, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    return per_scenario_path
+
+
 def write_results(
     summary: dict[str, Any],
     results_dir: Path = DEFAULT_RESULTS_DIR,
+    *,
+    outcomes: list[ScenarioOutcome] | None = None,
 ) -> tuple[Path, Path]:
-    """Write JSON summary and Markdown report into evals/results/."""
+    """Write JSON summary, optional per-scenario JSON, and Markdown report into evals/results/."""
     results_dir.mkdir(parents=True, exist_ok=True)
     json_path = results_dir / "eval_summary.json"
     md_path = results_dir / "eval_report.md"
     json_path.write_text(json.dumps(summary, indent=2), encoding="utf-8")
     md_path.write_text(render_markdown_report(summary), encoding="utf-8")
+    if outcomes is not None:
+        write_per_scenario_results(outcomes, results_dir)
     return json_path, md_path
 
 
@@ -280,10 +355,11 @@ def main() -> None:
     args = parser.parse_args()
 
     settings = Settings(llm_provider=args.provider)
-    summary, _ = asyncio.run(evaluate_scenarios(args.scenarios, settings=settings))
-    json_path, md_path = write_results(summary, args.results_dir)
+    summary, outcomes = asyncio.run(evaluate_scenarios(args.scenarios, settings=settings))
+    json_path, md_path = write_results(summary, args.results_dir, outcomes=outcomes)
+    per_path = args.results_dir / "per_scenario_results.json"
     print(render_markdown_report(summary))
-    print(f"Wrote evaluation results to {json_path} and {md_path}")
+    print(f"Wrote evaluation results to {json_path}, {per_path}, and {md_path}")
 
 
 if __name__ == "__main__":

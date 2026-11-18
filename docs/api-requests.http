@@ -52,3 +52,39 @@ Accept: text/event-stream
 
 ### 8. Inspect PII-Redacted Agent Audit Runs
 GET {{baseUrl}}/v1/runs?limit=10
+
+### 9. Multi-Turn Chat Turn 1 (Auto-Generates session_id)
+POST {{baseUrl}}/v1/chat
+Content-Type: application/json
+
+{
+  "message": "Check the status of order ORD-1008."
+}
+
+### 10. Multi-Turn Chat Turn 2 (Follow-Up in Existing Session)
+POST {{baseUrl}}/v1/chat
+Content-Type: application/json
+
+{
+  "session_id": "sess_demo_001",
+  "message": "Please refund it because keys stopped working."
+}
+
+### 11. Fetch Full Multi-Turn Session History & Run IDs
+GET {{baseUrl}}/v1/sessions/sess_demo_001
+
+### 12. List Pending Supervisor Refund Approvals (Tab 2 HITL Queue)
+GET {{baseUrl}}/v1/refunds/pending?status=PENDING_APPROVAL
+
+### 13. Supervisor Atomic Approval / Rejection Decision
+POST {{baseUrl}}/v1/refunds/RFD-SEED-002/decision
+Content-Type: application/json
+
+{
+  "decision": "APPROVE",
+  "reviewer_note": "Verified defective audio video proof and return airwaybill.",
+  "reviewer_id": "supervisor.ops"
+}
+
+### 14. Latest 30-Scenario Evaluation Summary & Per-Scenario Drilldown
+GET {{baseUrl}}/v1/evals/latest

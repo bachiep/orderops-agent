@@ -106,7 +106,8 @@ class FinancialPolicyGate:
         active_refund = self.db.fetch_one(
             """
             SELECT refund_id, status FROM refund_requests
-            WHERE order_id = ? AND status IN ('AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL')
+            WHERE order_id = ?
+              AND status IN ('AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL', 'APPROVED')
             LIMIT 1;
             """,
             (payload.order_id,),
