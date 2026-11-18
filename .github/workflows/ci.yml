@@ -29,3 +29,33 @@ jobs:
 
       - name: Run pytest suite
         run: pytest -v
+
+  docker-smoke:
+    needs: lint-and-test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Validate Compose configuration without .env
+        run: docker compose config -q
+
+      - name: Start OrderOps API container
+        run: docker compose up -d --build api
+
+      - name: Verify seeded API health and orders endpoint inside container
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8302/health | grep -q '"status"'; then
+              break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8302/health
+          curl -fsS http://127.0.0.1:8302/v1/orders | grep -q 'ORD-1002'
+
+      - name: Tear down Compose stack
+        if: always()
+        run: |
+          docker compose logs api || true
+          docker compose down -v --remove-orphans
