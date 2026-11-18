@@ -11,7 +11,13 @@ COPY src ./src
 COPY scripts ./scripts
 COPY evals ./evals
 
-RUN pip install --upgrade pip && pip install ".[ui]"
+RUN pip install --upgrade pip && pip install --no-cache-dir ".[ui]" \
+    && groupadd --system appgroup \
+    && useradd --system --gid appgroup --create-home appuser \
+    && mkdir -p /app/data \
+    && chown -R appuser:appgroup /app
+
+USER appuser
 
 EXPOSE 8302 8502
 

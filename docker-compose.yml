@@ -6,7 +6,8 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       APP_ENV: production
       API_PORT: 8302
@@ -27,7 +28,8 @@ services:
       context: .
       dockerfile: Dockerfile
     env_file:
-      - .env
+      - path: .env
+        required: false
     environment:
       API_BASE_URL: http://api:8302
       STREAMLIT_PORT: 8502
