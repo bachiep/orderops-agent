@@ -207,13 +207,10 @@ async def evaluate_scenarios(
     avg_comp_tokens = round(sum(o.completion_tokens for o in outcomes) / max(1, total), 1)
 
     eval_model = (
-        "local-planner"
-        if active_settings.llm_provider == "local"
-        else active_settings.llm_model
+        "local-planner" if active_settings.llm_provider == "local" else active_settings.llm_model
     )
     total_actual_cost = sum(
-        estimate_cost_usd(o.prompt_tokens, o.completion_tokens, eval_model)
-        for o in outcomes
+        estimate_cost_usd(o.prompt_tokens, o.completion_tokens, eval_model) for o in outcomes
     )
     projected_gpt4o_mini_per_1k = round(
         estimate_cost_usd(int(avg_prompt_tokens), int(avg_comp_tokens), "gpt-4o-mini") * 1000.0,
@@ -236,9 +233,7 @@ async def evaluate_scenarios(
             "p50_latency_ms": _percentile([o.latency_ms for o in cat_items], 0.50),
         }
 
-    trajectory_acc = round(
-        sum(1 for o in outcomes if o.trajectory_match) / total * 100.0, 2
-    )
+    trajectory_acc = round(sum(1 for o in outcomes if o.trajectory_match) / total * 100.0, 2)
     summary: dict[str, Any] = {
         "provider": active_settings.llm_provider,
         "total_scenarios": total,

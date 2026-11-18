@@ -239,6 +239,71 @@ def test_v1_refund_requests_schema_migrates_safely_on_init_schema(tmp_path: Path
         assert migrated == {"status": "APPROVED", "reviewer_id": "sup-1"}
 
 
+def test_v2_refund_requests_migrates_session_id_column_safely_on_init_schema(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "legacy_v2.db"
+    conn = sqlite3.connect(db_path)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    conn.execute(
+        """
+        CREATE TABLE customers (
+            customer_id TEXT PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            phone TEXT NOT NULL,
+            tier TEXT NOT NULL DEFAULT 'STANDARD',
+            created_at TEXT NOT NULL
+        );
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE orders (
+            order_id TEXT PRIMARY KEY,
+            customer_id TEXT NOT NULL REFERENCES customers(customer_id) ON DELETE RESTRICT,
+            item_name TEXT NOT NULL,
+            category TEXT NOT NULL,
+            quantity INTEGER NOT NULL DEFAULT 1,
+            total_vnd INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            ordered_at TEXT NOT NULL,
+            delivered_at TEXT,
+            tracking_code TEXT
+        );
+        """
+    )
+    conn.execute(
+        """
+        CREATE TABLE refund_requests (
+            refund_id TEXT PRIMARY KEY,
+            order_id TEXT NOT NULL REFERENCES orders(order_id) ON DELETE RESTRICT,
+            customer_id TEXT NOT NULL REFERENCES customers(customer_id) ON DELETE RESTRICT,
+            amount_vnd INTEGER NOT NULL,
+            reason_code TEXT NOT NULL,
+            reason_detail TEXT NOT NULL,
+            status TEXT NOT NULL CHECK (
+                status IN ('AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL', 'APPROVED', 'REJECTED')
+            ),
+            requires_human_review INTEGER NOT NULL,
+            created_at TEXT NOT NULL,
+            reviewed_at TEXT,
+            reviewer_note TEXT,
+            reviewer_id TEXT
+        );
+        """
+    )
+    conn.commit()
+    conn.close()
+
+    with DatabaseManager(db_path) as db:
+        db.init_schema()
+        cols = {str(r["name"]) for r in db.fetch_all("PRAGMA table_info(refund_requests);")}
+        assert "session_id" in cols
+        counts = db.get_table_counts()
+        assert counts["idempotency_records"] == 0
+
+
 def test_colab_qlora_notebook_is_valid_nbformat4() -> None:
     nb_path = (
         Path(__file__).resolve().parents[1]

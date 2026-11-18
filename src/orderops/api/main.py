@@ -39,6 +39,7 @@ def create_app(
         )
         app.state.settings = active_settings
         app.state.db = active_db
+        app.state.toolset = toolset
         app.state.runner = runner
         try:
             yield

@@ -148,6 +148,18 @@ class OrderOpsToolset:
         """Deterministically evaluate refund eligibility against DB state and policy rules."""
         return self.policy_gate.evaluate_eligibility(payload)
 
-    def create_refund_request(self, payload: CreateRefundRequestInput) -> CreateRefundOutput:
+    def create_refund_request(
+        self,
+        payload: CreateRefundRequestInput,
+        *,
+        session_id: str | None = None,
+        idempotency_key: str | None = None,
+        idempotency_endpoint: str = "service:create_refund_request",
+    ) -> CreateRefundOutput:
         """Create a refund request only after enforcing deterministic financial policy gates."""
-        return self.policy_gate.execute_refund(payload)
+        return self.policy_gate.execute_refund(
+            payload,
+            session_id=session_id,
+            idempotency_key=idempotency_key,
+            idempotency_endpoint=idempotency_endpoint,
+        )

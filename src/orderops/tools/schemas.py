@@ -191,4 +191,5 @@ class CreateRefundOutput(BaseModel):
     status: Literal["AUTO_APPROVED", "PENDING_HUMAN_APPROVAL", "REJECTED"]
     requires_human_review: bool
     policy_violation: str | None = None
+    idempotent_replay: bool = False
     message: str

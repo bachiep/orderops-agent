@@ -2,13 +2,15 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 
 from orderops.config import Settings
-from orderops.db import DatabaseManager
+from orderops.db import DatabaseManager, IdempotencyConflictError
 from orderops.tools.schemas import (
     CreateRefundOutput,
     CreateRefundRequestInput,
@@ -116,9 +118,7 @@ class FinancialPolicyGate:
         policy = self.find_policy_row(order["category"], payload.reason_code)
         days_since = _days_elapsed(order["delivered_at"], self._now())
         max_window = (
-            int(policy["return_window_days"])
-            if policy
-            else self.settings.return_window_days
+            int(policy["return_window_days"]) if policy else self.settings.return_window_days
         )
         effective_window = min(max_window, self.settings.return_window_days)
         restocking_pct = int(policy["restocking_fee_pct"]) if policy else 0
@@ -164,8 +164,50 @@ class FinancialPolicyGate:
             policy_notes=notes,
         )
 
-    def execute_refund(self, payload: CreateRefundRequestInput) -> CreateRefundOutput:
+    def execute_refund(
+        self,
+        payload: CreateRefundRequestInput,
+        *,
+        session_id: str | None = None,
+        idempotency_key: str | None = None,
+        idempotency_endpoint: str = "service:create_refund_request",
+    ) -> CreateRefundOutput:
         """Unconditionally enforce financial policy invariants before mutating SQLite."""
+        clean_session_id = session_id.strip() if session_id and session_id.strip() else None
+        clean_key = idempotency_key.strip() if idempotency_key and idempotency_key.strip() else None
+        request_hash = ""
+        if clean_key is not None:
+            canonical = json.dumps(
+                {
+                    "order_id": payload.order_id,
+                    "amount_vnd": payload.amount_vnd,
+                    "reason_code": payload.reason_code,
+                    "reason": payload.reason,
+                    "session_id": clean_session_id,
+                },
+                sort_keys=True,
+                ensure_ascii=False,
+            )
+            request_hash = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+            existing = self.db.fetch_one(
+                """
+                SELECT endpoint, request_hash, response_json
+                FROM idempotency_records
+                WHERE idempotency_key = ?;
+                """,
+                (clean_key,),
+            )
+            if existing is not None:
+                if (
+                    existing["request_hash"] != request_hash
+                    or existing["endpoint"] != idempotency_endpoint
+                ):
+                    raise IdempotencyConflictError(
+                        f"Idempotency-Key '{clean_key}' was already used with a different payload."
+                    )
+                replayed = CreateRefundOutput.model_validate_json(str(existing["response_json"]))
+                return replayed.model_copy(update={"idempotent_replay": True})
+
         eligibility = self.evaluate_eligibility(
             EvaluateRefundEligibilityInput(
                 order_id=payload.order_id,
@@ -205,8 +247,45 @@ class FinancialPolicyGate:
         next_order_status = "REFUND_PENDING" if requires_human else "REFUNDED"
         refund_id = f"RFD-{uuid.uuid4().hex[:8].upper()}"
         created_at = self._now().replace(microsecond=0).isoformat()
+        output = CreateRefundOutput(
+            created=True,
+            refund_id=refund_id,
+            order_id=payload.order_id,
+            amount_vnd=payload.amount_vnd,
+            status=refund_status,
+            requires_human_review=requires_human,
+            policy_violation=None,
+            idempotent_replay=False,
+            message=(
+                f"Refund {refund_id} created for {payload.amount_vnd:,} VND with status "
+                f"{refund_status}."
+            ),
+        )
 
         with self.db.transaction() as conn:
+            if clean_key is not None:
+                existing_tx = conn.execute(
+                    """
+                    SELECT endpoint, request_hash, response_json
+                    FROM idempotency_records
+                    WHERE idempotency_key = ?;
+                    """,
+                    (clean_key,),
+                ).fetchone()
+                if existing_tx is not None:
+                    if (
+                        existing_tx["request_hash"] != request_hash
+                        or existing_tx["endpoint"] != idempotency_endpoint
+                    ):
+                        raise IdempotencyConflictError(
+                            f"Idempotency-Key '{clean_key}' was already used with a "
+                            "different payload."
+                        )
+                    replayed = CreateRefundOutput.model_validate_json(
+                        str(existing_tx["response_json"])
+                    )
+                    return replayed.model_copy(update={"idempotent_replay": True})
+
             order_row = conn.execute(
                 "SELECT customer_id, status FROM orders WHERE order_id = ?;",
                 (payload.order_id,),
@@ -226,14 +305,15 @@ class FinancialPolicyGate:
             conn.execute(
                 """
                 INSERT INTO refund_requests (
-                    refund_id, order_id, customer_id, amount_vnd,
+                    refund_id, order_id, customer_id, session_id, amount_vnd,
                     reason_code, reason_detail, status, requires_human_review, created_at
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?);
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
                 """,
                 (
                     refund_id,
                     payload.order_id,
                     order_row["customer_id"],
+                    clean_session_id,
                     payload.amount_vnd,
                     payload.reason_code,
                     payload.reason,
@@ -246,17 +326,23 @@ class FinancialPolicyGate:
                 "UPDATE orders SET status = ? WHERE order_id = ?;",
                 (next_order_status, payload.order_id),
             )
+            if clean_key is not None:
+                conn.execute(
+                    """
+                    INSERT INTO idempotency_records (
+                        idempotency_key, endpoint, request_hash, refund_id,
+                        response_status, response_json, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?);
+                    """,
+                    (
+                        clean_key,
+                        idempotency_endpoint,
+                        request_hash,
+                        refund_id,
+                        200,
+                        output.model_dump_json(),
+                        created_at,
+                    ),
+                )
 
-        return CreateRefundOutput(
-            created=True,
-            refund_id=refund_id,
-            order_id=payload.order_id,
-            amount_vnd=payload.amount_vnd,
-            status=refund_status,
-            requires_human_review=requires_human,
-            policy_violation=None,
-            message=(
-                f"Refund {refund_id} created for {payload.amount_vnd:,} VND with status "
-                f"{refund_status}."
-            ),
-        )
+        return output
