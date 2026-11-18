@@ -121,9 +121,9 @@ curl -X POST http://localhost:8302/v1/agent/runs \
 - **VS Code / IntelliJ HTTP Client:** [`docs/api-requests.http`](docs/api-requests.http)
 - **Postman Collection v2.1:** [`docs/postman_collection.json`](docs/postman_collection.json) (covers v2.0 multi-turn chat, HITL approval queue, eval drilldown, SSE trace streaming, and masked audit logs)
 
-| High-Value Human Approval Trace (`ORD-1002`) | Prompt-Injection Guardrail Blocked (`BLOCKED_GUARDRAIL`) | FastAPI OpenAPI Schema (`/docs`) |
+| Multi-Turn Support Desk & Live SSE Tool Trace | Supervisor HITL Approval Queue (`APPROVE`/`REJECT`) | 30-Scenario Safety & Tool-Trajectory Scorecard |
 | :---: | :---: | :---: |
-| ![Streamlit Human Approval Trace](docs/screenshots/streamlit-human-approval-trace.png) | ![Streamlit Guardrail Blocked](docs/screenshots/streamlit-guardrail-blocked.png) | ![FastAPI OpenAPI Docs](docs/screenshots/fastapi-openapi-docs.png) |
+| ![Agent Support Desk](docs/screenshots/ops-agent-desk.png) | ![Supervisor Approval Queue](docs/screenshots/ops-approval-queue.png) | ![Safety and Tool Eval Scorecard](docs/screenshots/ops-safety-evals.png) |
 
 ## 5. Testing, Quantitative Evaluation (`evals/`) & Colab QLoRA Fine-Tuning
 
