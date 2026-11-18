@@ -54,6 +54,7 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
         refund_id TEXT PRIMARY KEY,
         order_id TEXT NOT NULL REFERENCES orders(order_id) ON DELETE RESTRICT,
         customer_id TEXT NOT NULL REFERENCES customers(customer_id) ON DELETE RESTRICT,
+        session_id TEXT,
         amount_vnd INTEGER NOT NULL CHECK (amount_vnd > 0),
         reason_code TEXT NOT NULL,
         reason_detail TEXT NOT NULL,
@@ -128,5 +129,16 @@ SCHEMA_STATEMENTS: tuple[str, ...] = (
     """
     CREATE INDEX IF NOT EXISTS idx_refund_audit_logs_refund_id
     ON refund_audit_logs(refund_id, created_at DESC);
+    """,
+    """
+    CREATE TABLE IF NOT EXISTS idempotency_records (
+        idempotency_key TEXT PRIMARY KEY,
+        endpoint TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        refund_id TEXT,
+        response_status INTEGER NOT NULL,
+        response_json TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    );
     """,
 )

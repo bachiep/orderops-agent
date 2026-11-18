@@ -128,6 +128,10 @@ async def test_ops_console_html_served_at_root(tmp_path: Path) -> None:
                 assert resp.status_code == 200
                 assert "text/html" in resp.headers["content-type"]
                 html = resp.text
+                assert "v2.1.0" in html
+                assert "desk-chat-card" in html
+                assert "idempotency-key-input" in html
+                assert "Run Agent Stream" in html
                 assert "Agent Support Desk" in html
                 assert "Supervisor Approval Queue" in html
                 assert "Safety &amp; Tool Eval Scorecard" in html
@@ -304,3 +308,240 @@ async def test_latest_evals_endpoint_returns_30_scenarios(tmp_path: Path) -> Non
                     "latency_ms",
                 ):
                     assert field in sample
+
+
+async def test_hitl_decision_appends_closed_loop_notification_to_session_messages(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "hitl_closed_loop.db"
+    with DatabaseManager(db_path) as db:
+        seed_demo_database(db)
+        settings = Settings(database_path=str(db_path), llm_provider="local")
+        app = create_app(settings=settings, db=db)
+
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                chat_resp = await client.post(
+                    "/v1/chat",
+                    json={"message": "Request refund for defective headphones ORD-1002"},
+                )
+                assert chat_resp.status_code == 200
+                chat_body = chat_resp.json()
+                session_id = chat_body["session_id"]
+                refund_id = chat_body["refund_id"]
+                assert chat_body["resolution_status"] == "PENDING_HUMAN_APPROVAL"
+
+                decision_resp = await client.post(
+                    f"/v1/refunds/{refund_id}/decision",
+                    json={
+                        "decision": "APPROVE",
+                        "reviewer_note": "Approved after QA check; contact 0901234567",
+                        "reviewer_id": "sup.mai",
+                    },
+                )
+                assert decision_resp.status_code == 200
+                decided = decision_resp.json()
+                assert decided["session_id"] == session_id
+                assert decided["session_notified"] is True
+
+                sess_resp = await client.get(f"/v1/sessions/{session_id}")
+                assert sess_resp.status_code == 200
+                messages = sess_resp.json()["messages"]
+                assert len(messages) == 3
+                last_msg = messages[-1]
+                assert last_msg["role"] == "assistant"
+                assert last_msg["intent"] == "HITL_DECISION"
+                assert last_msg["resolution_status"] == "APPROVED"
+                assert last_msg["refund_id"] == refund_id
+                assert "[Supervisor Update]" in last_msg["content"]
+                assert refund_id in last_msg["content"]
+                assert "ORD-1002" in last_msg["content"]
+                assert "APPROVED" in last_msg["content"]
+                assert "0901234567" not in last_msg["content"]
+
+
+async def test_post_refunds_idempotency_replay_and_409_conflict_and_hitl_reject_notification(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "refund_idempotency.db"
+    with DatabaseManager(db_path) as db:
+        seed_demo_database(db)
+        settings = Settings(database_path=str(db_path), llm_provider="local")
+        app = create_app(settings=settings, db=db)
+
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                payload = {
+                    "order_id": "ORD-1008",
+                    "amount_vnd": 1_290_000,
+                    "reason": "Mechanical switches double-typing",
+                    "reason_code": "defective",
+                    "session_id": "sess-direct-1008",
+                }
+                first = await client.post(
+                    "/v1/refunds",
+                    json=payload,
+                    headers={"Idempotency-Key": "ik-ord1008-001"},
+                )
+                assert first.status_code == 200
+                assert first.headers["X-Idempotent-Replay"] == "false"
+                first_body = first.json()
+                assert first_body["status"] == "PENDING_HUMAN_APPROVAL"
+                assert first_body["session_id"] == "sess-direct-1008"
+                assert first_body["idempotent_replay"] is False
+                refund_id = first_body["refund_id"]
+
+                # Exact retry returns the existing RefundRequest without duplicating HITL tickets
+                replay = await client.post(
+                    "/v1/refunds",
+                    json=payload,
+                    headers={"Idempotency-Key": "ik-ord1008-001"},
+                )
+                assert replay.status_code == 200
+                assert replay.headers["X-Idempotent-Replay"] == "true"
+                replay_body = replay.json()
+                assert replay_body["refund_id"] == refund_id
+                assert replay_body["idempotent_replay"] is True
+
+                row_count = db.fetch_one(
+                    "SELECT COUNT(*) AS cnt FROM refund_requests WHERE order_id = 'ORD-1008';"
+                )
+                assert row_count is not None and int(row_count["cnt"]) == 1
+
+                # Mismatched payload under same Idempotency-Key -> 409 Conflict (RFC 7807)
+                conflict = await client.post(
+                    "/v1/refunds",
+                    json={**payload, "amount_vnd": 900_000},
+                    headers={"Idempotency-Key": "ik-ord1008-001"},
+                )
+                assert conflict.status_code == 409
+                assert conflict.headers["content-type"].startswith("application/problem+json")
+                conflict_body = conflict.json()
+                assert conflict_body["status"] == 409
+                assert conflict_body["title"] == "Idempotency-Key Conflict"
+                assert "detail" in conflict_body
+
+                # Blank Idempotency-Key -> 422
+                blank_key = await client.post(
+                    "/v1/refunds",
+                    json=payload,
+                    headers={"Idempotency-Key": "   "},
+                )
+                assert blank_key.status_code == 422
+
+                # Reject direct refund and verify closed-loop notification in session_messages
+                reject_resp = await client.post(
+                    f"/v1/refunds/{refund_id}/decision",
+                    json={
+                        "decision": "REJECT",
+                        "reviewer_note": "No keycap defect visible in video proof.",
+                        "reviewer_id": "sup.tuan",
+                    },
+                )
+                assert reject_resp.status_code == 200
+                assert reject_resp.json()["session_notified"] is True
+
+                sess_resp = await client.get("/v1/sessions/sess-direct-1008")
+                assert sess_resp.status_code == 200
+                msgs = sess_resp.json()["messages"]
+                assert len(msgs) == 1
+                assert "[Supervisor Update]" in msgs[0]["content"]
+                assert "REJECTED" in msgs[0]["content"]
+
+                # Policy violation on direct refund submission -> 422 RFC 7807
+                expired = await client.post(
+                    "/v1/refunds",
+                    json={
+                        "order_id": "ORD-1003",
+                        "amount_vnd": 450_000,
+                        "reason": "Expired lamp",
+                        "reason_code": "defective",
+                    },
+                )
+                assert expired.status_code == 422
+                assert expired.json()["policy_violation"] == "EXPIRED_RETURN_WINDOW"
+
+
+async def test_agent_runs_and_stream_support_idempotency_key_replay_and_409(
+    tmp_path: Path,
+) -> None:
+    db_path = tmp_path / "agent_idempotency.db"
+    with DatabaseManager(db_path) as db:
+        seed_demo_database(db)
+        settings = Settings(database_path=str(db_path), llm_provider="local")
+        app = create_app(settings=settings, db=db)
+
+        async with app.router.lifespan_context(app):
+            transport = httpx.ASGITransport(app=app)
+            async with httpx.AsyncClient(
+                transport=transport,
+                base_url="http://testserver",
+            ) as client:
+                req_body = {
+                    "message": (
+                        "My headphones in ORD-1002 have static audio. Please process a refund."
+                    ),
+                    "session_id": "sess-idem-agent",
+                }
+                first = await client.post(
+                    "/v1/agent/runs",
+                    json=req_body,
+                    headers={"Idempotency-Key": "ik-agent-1002"},
+                )
+                assert first.status_code == 200
+                assert first.headers["X-Idempotent-Replay"] == "false"
+                first_json = first.json()
+
+                replay = await client.post(
+                    "/v1/agent/runs",
+                    json=req_body,
+                    headers={"Idempotency-Key": "ik-agent-1002"},
+                )
+                assert replay.status_code == 200
+                assert replay.headers["X-Idempotent-Replay"] == "true"
+                assert replay.json()["run_id"] == first_json["run_id"]
+                assert replay.json()["refund_id"] == first_json["refund_id"]
+
+                mismatch = await client.post(
+                    "/v1/agent/runs",
+                    json={"message": "Check ORD-1001", "session_id": "sess-idem-agent"},
+                    headers={"Idempotency-Key": "ik-agent-1002"},
+                )
+                assert mismatch.status_code == 409
+
+                stream_req = {"message": "Check ORD-1001", "session_id": "sess-idem-stream"}
+                stream_first = await client.post(
+                    "/v1/agent/runs/stream",
+                    json=stream_req,
+                    headers={"Idempotency-Key": "ik-stream-1001"},
+                )
+                assert stream_first.status_code == 200
+                assert stream_first.headers["X-Idempotent-Replay"] == "false"
+
+                stream_replay = await client.post(
+                    "/v1/agent/runs/stream",
+                    json=stream_req,
+                    headers={"Idempotency-Key": "ik-stream-1001"},
+                )
+                assert stream_replay.status_code == 200
+                assert stream_replay.headers["X-Idempotent-Replay"] == "true"
+                events = _parse_sse_text(stream_replay.text)
+                assert events[0][0] == "guardrail_check"
+                assert events[0][1]["idempotent_replay"] is True
+                assert events[-1][0] == "run_completed"
+                assert events[-1][1]["resolution_status"] == "RESOLVED_INFO"
+
+                stream_mismatch = await client.post(
+                    "/v1/agent/runs/stream",
+                    json={"message": "Check ORD-1002", "session_id": "sess-idem-stream"},
+                    headers={"Idempotency-Key": "ik-stream-1001"},
+                )
+                assert stream_mismatch.status_code == 409

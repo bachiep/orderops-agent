@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import uuid
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, Literal
 
-from orderops.db.database import DatabaseManager
+from orderops.db.database import DatabaseManager, IdempotencyConflictError
 from orderops.guardrails.pii import get_structured_logger, mask_email, redact_pii
 
 if TYPE_CHECKING:
@@ -105,6 +106,15 @@ def persist_agent_run(
                     ),
                 ],
             )
+            if resolution.refund_id:
+                conn.execute(
+                    """
+                    UPDATE refund_requests
+                    SET session_id = ?
+                    WHERE refund_id = ? AND (session_id IS NULL OR session_id = '');
+                    """,
+                    (session_id, resolution.refund_id),
+                )
 
 
 def get_session_history_for_llm(
@@ -215,6 +225,52 @@ def list_sessions(db: DatabaseManager, *, limit: int = 20) -> list[dict[str, Any
     return sessions
 
 
+def _format_refund_row(row: Any) -> dict[str, Any]:
+    return {
+        "refund_id": row["refund_id"],
+        "order_id": row["order_id"],
+        "customer_id": row["customer_id"],
+        "session_id": row["session_id"],
+        "customer_name": row["customer_name"],
+        "customer_tier": row["customer_tier"],
+        "customer_email_masked": mask_email(row["customer_email"]),
+        "item_name": row["item_name"],
+        "category": row["category"],
+        "order_total_vnd": int(row["order_total_vnd"]),
+        "order_status": row["order_status"],
+        "amount_vnd": int(row["amount_vnd"]),
+        "reason_code": row["reason_code"],
+        "reason": row["reason_detail"],
+        "status": row["status"],
+        "requires_human_review": bool(row["requires_human_review"]),
+        "created_at": row["created_at"],
+        "reviewed_at": row["reviewed_at"],
+        "reviewer_note": row["reviewer_note"],
+        "reviewer_id": row["reviewer_id"],
+    }
+
+
+def get_refund_request_detail(db: DatabaseManager, refund_id: str) -> dict[str, Any] | None:
+    """Fetch a single refund request joined with masked customer and order metadata."""
+    row = db.fetch_one(
+        """
+        SELECT r.refund_id, r.order_id, r.customer_id, r.session_id, r.amount_vnd,
+               r.reason_code, r.reason_detail, r.status, r.requires_human_review,
+               r.created_at, r.reviewed_at, r.reviewer_note, r.reviewer_id,
+               o.item_name, o.category, o.total_vnd AS order_total_vnd,
+               o.status AS order_status,
+               c.full_name AS customer_name, c.email AS customer_email,
+               c.tier AS customer_tier
+        FROM refund_requests r
+        JOIN orders o ON r.order_id = o.order_id
+        JOIN customers c ON r.customer_id = c.customer_id
+        WHERE r.refund_id = ?;
+        """,
+        (refund_id,),
+    )
+    return _format_refund_row(row) if row is not None else None
+
+
 def list_refund_requests(
     db: DatabaseManager,
     *,
@@ -240,7 +296,7 @@ def list_refund_requests(
 
     db_status = filter_map[normalized]
     base_sql = """
-        SELECT r.refund_id, r.order_id, r.customer_id, r.amount_vnd,
+        SELECT r.refund_id, r.order_id, r.customer_id, r.session_id, r.amount_vnd,
                r.reason_code, r.reason_detail, r.status, r.requires_human_review,
                r.created_at, r.reviewed_at, r.reviewer_note, r.reviewer_id,
                o.item_name, o.category, o.total_vnd AS order_total_vnd,
@@ -273,30 +329,7 @@ def list_refund_requests(
         "all": sum(status_counts.values()),
     }
 
-    refunds = [
-        {
-            "refund_id": row["refund_id"],
-            "order_id": row["order_id"],
-            "customer_id": row["customer_id"],
-            "customer_name": row["customer_name"],
-            "customer_tier": row["customer_tier"],
-            "customer_email_masked": mask_email(row["customer_email"]),
-            "item_name": row["item_name"],
-            "category": row["category"],
-            "order_total_vnd": int(row["order_total_vnd"]),
-            "order_status": row["order_status"],
-            "amount_vnd": int(row["amount_vnd"]),
-            "reason_code": row["reason_code"],
-            "reason": row["reason_detail"],
-            "status": row["status"],
-            "requires_human_review": bool(row["requires_human_review"]),
-            "created_at": row["created_at"],
-            "reviewed_at": row["reviewed_at"],
-            "reviewer_note": row["reviewer_note"],
-            "reviewer_id": row["reviewer_id"],
-        }
-        for row in rows
-    ]
+    refunds = [_format_refund_row(row) for row in rows]
     return {"refunds": refunds, "total": len(refunds), "counts": counts}
 
 
@@ -308,17 +341,18 @@ def decide_refund_request(
     reviewer_note: str,
     reviewer_id: str | None = None,
 ) -> dict[str, Any]:
-    """Atomically approve or reject a pending refund request inside BEGIN IMMEDIATE."""
+    """Atomically approve or reject a pending refund and notify the originating session."""
     safe_note, _ = redact_pii(reviewer_note.strip(), redact_email=True)
     raw_reviewer = (reviewer_id or "supervisor-console").strip() or "supervisor-console"
     safe_reviewer_id, _ = redact_pii(raw_reviewer, redact_email=True)
     reviewed_at = _utc_now_iso()
     new_status = "APPROVED" if decision == "APPROVE" else "REJECTED"
+    originating_session_id: str | None = None
 
     with db.transaction() as conn:
         row = conn.execute(
             """
-            SELECT r.refund_id, r.order_id, r.customer_id, r.amount_vnd,
+            SELECT r.refund_id, r.order_id, r.customer_id, r.session_id, r.amount_vnd,
                    r.reason_code, r.reason_detail, r.status, r.created_at,
                    o.status AS order_status, o.item_name, o.category,
                    o.total_vnd AS order_total_vnd,
@@ -341,6 +375,21 @@ def decide_refund_request(
                 f"Refund request '{refund_id}' already has status '{previous_status}'."
             )
 
+        originating_session_id = str(row["session_id"]).strip() if row["session_id"] else None
+        if not originating_session_id:
+            run_row = conn.execute(
+                """
+                SELECT session_id
+                FROM agent_runs
+                WHERE refund_id = ? AND session_id IS NOT NULL AND session_id != ''
+                ORDER BY created_at DESC, rowid DESC
+                LIMIT 1;
+                """,
+                (refund_id,),
+            ).fetchone()
+            if run_row is not None:
+                originating_session_id = str(run_row["session_id"]).strip() or None
+
         next_order_status = (
             "REFUNDED"
             if decision == "APPROVE"
@@ -354,10 +403,18 @@ def decide_refund_request(
                 requires_human_review = 0,
                 reviewed_at = ?,
                 reviewer_note = ?,
-                reviewer_id = ?
+                reviewer_id = ?,
+                session_id = COALESCE(NULLIF(session_id, ''), ?)
             WHERE refund_id = ? AND status = 'PENDING_HUMAN_APPROVAL';
             """,
-            (new_status, reviewed_at, safe_note, safe_reviewer_id, refund_id),
+            (
+                new_status,
+                reviewed_at,
+                safe_note,
+                safe_reviewer_id,
+                originating_session_id,
+                refund_id,
+            ),
         )
         conn.execute(
             "UPDATE orders SET status = ? WHERE order_id = ?;",
@@ -383,6 +440,29 @@ def decide_refund_request(
                 reviewed_at,
             ),
         )
+        if originating_session_id:
+            notification_text = (
+                f"[Supervisor Update] Refund #{refund_id} for Order {row['order_id']} "
+                f"was {new_status} by {safe_reviewer_id}: {safe_note}"
+            )
+            conn.execute(
+                """
+                INSERT INTO session_messages (
+                    session_id, run_id, role, content_masked,
+                    intent, resolution_status, refund_id, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?);
+                """,
+                (
+                    originating_session_id,
+                    None,
+                    "assistant",
+                    notification_text,
+                    "HITL_DECISION",
+                    new_status,
+                    refund_id,
+                    reviewed_at,
+                ),
+            )
 
     _refund_logger.info(
         "Supervisor refund decision recorded",
@@ -391,6 +471,8 @@ def decide_refund_request(
                 "audit_id": audit_id,
                 "refund_id": refund_id,
                 "order_id": row["order_id"],
+                "session_id": originating_session_id,
+                "session_notified": bool(originating_session_id),
                 "decision": decision,
                 "previous_status": previous_status,
                 "new_status": new_status,
@@ -405,6 +487,8 @@ def decide_refund_request(
         "refund_id": row["refund_id"],
         "order_id": row["order_id"],
         "customer_id": row["customer_id"],
+        "session_id": originating_session_id,
+        "session_notified": bool(originating_session_id),
         "customer_name": row["customer_name"],
         "customer_tier": row["customer_tier"],
         "customer_email_masked": mask_email(row["customer_email"]),
@@ -424,6 +508,89 @@ def decide_refund_request(
         "reviewer_id": safe_reviewer_id,
         "audit_id": audit_id,
     }
+
+
+def hash_canonical_payload(payload: dict[str, Any]) -> str:
+    """Compute a deterministic SHA-256 digest for request idempotency matching."""
+    canonical = json.dumps(payload, sort_keys=True, ensure_ascii=False, separators=(",", ":"))
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def lookup_idempotency_record(
+    db: DatabaseManager,
+    *,
+    idempotency_key: str,
+    endpoint: str,
+    request_hash: str,
+) -> dict[str, Any] | None:
+    """Return stored idempotent response dict or raise IdempotencyConflictError on mismatch."""
+    row = db.fetch_one(
+        """
+        SELECT endpoint, request_hash, refund_id, response_status, response_json
+        FROM idempotency_records
+        WHERE idempotency_key = ?;
+        """,
+        (idempotency_key,),
+    )
+    if row is None:
+        return None
+    if row["endpoint"] != endpoint or row["request_hash"] != request_hash:
+        raise IdempotencyConflictError(
+            f"Idempotency-Key '{idempotency_key}' was already used with a different payload."
+        )
+    return {
+        "refund_id": row["refund_id"],
+        "response_status": int(row["response_status"]),
+        "response": json.loads(str(row["response_json"])),
+    }
+
+
+def save_idempotency_record(
+    db: DatabaseManager,
+    *,
+    idempotency_key: str,
+    endpoint: str,
+    request_hash: str,
+    refund_id: str | None,
+    response_status: int,
+    response_payload: dict[str, Any],
+) -> None:
+    """Atomically store an idempotency record unless already present with matching hash."""
+    created_at = _utc_now_iso()
+    serialized = json.dumps(response_payload, ensure_ascii=False)
+    with db.transaction() as conn:
+        existing = conn.execute(
+            """
+            SELECT endpoint, request_hash
+            FROM idempotency_records
+            WHERE idempotency_key = ?;
+            """,
+            (idempotency_key,),
+        ).fetchone()
+        if existing is not None:
+            if existing["endpoint"] != endpoint or existing["request_hash"] != request_hash:
+                raise IdempotencyConflictError(
+                    f"Idempotency-Key '{idempotency_key}' was already used with a "
+                    "different payload."
+                )
+            return
+        conn.execute(
+            """
+            INSERT INTO idempotency_records (
+                idempotency_key, endpoint, request_hash, refund_id,
+                response_status, response_json, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?);
+            """,
+            (
+                idempotency_key,
+                endpoint,
+                request_hash,
+                refund_id,
+                response_status,
+                serialized,
+                created_at,
+            ),
+        )
 
 
 def list_recent_agent_runs(db: DatabaseManager, *, limit: int = 20) -> list[dict[str, Any]]:

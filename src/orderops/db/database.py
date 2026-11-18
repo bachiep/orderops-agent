@@ -12,6 +12,10 @@ from typing import Any
 from orderops.db.schema import SCHEMA_STATEMENTS
 
 
+class IdempotencyConflictError(RuntimeError):
+    """Raised when an Idempotency-Key is reused with a different request payload."""
+
+
 class DatabaseManager:
     """Manages SQLite schema initialization, parameterized queries, and atomic transactions."""
 
@@ -35,11 +39,12 @@ class DatabaseManager:
         return conn
 
     def init_schema(self) -> None:
-        """Create all tables and indexes if they do not exist and migrate v1 tables safely."""
+        """Create all tables and indexes if they do not exist and migrate v1/v2 tables safely."""
         with self._lock:
             for stmt in SCHEMA_STATEMENTS:
                 self._conn.execute(stmt)
             self._migrate_refund_requests_if_needed()
+            self._migrate_refund_requests_v21_columns()
 
     def _migrate_refund_requests_if_needed(self) -> None:
         row = self._conn.execute(
@@ -60,6 +65,7 @@ class DatabaseManager:
                     refund_id TEXT PRIMARY KEY,
                     order_id TEXT NOT NULL REFERENCES orders(order_id) ON DELETE RESTRICT,
                     customer_id TEXT NOT NULL REFERENCES customers(customer_id) ON DELETE RESTRICT,
+                    session_id TEXT,
                     amount_vnd INTEGER NOT NULL CHECK (amount_vnd > 0),
                     reason_code TEXT NOT NULL,
                     reason_detail TEXT NOT NULL,
@@ -104,6 +110,27 @@ class DatabaseManager:
         finally:
             self._conn.execute("PRAGMA foreign_keys = ON;")
 
+    def _migrate_refund_requests_v21_columns(self) -> None:
+        cols = {
+            str(row["name"])
+            for row in self._conn.execute("PRAGMA table_info(refund_requests);").fetchall()
+        }
+        if "session_id" not in cols:
+            self._conn.execute("BEGIN IMMEDIATE;")
+            try:
+                self._conn.execute("ALTER TABLE refund_requests ADD COLUMN session_id TEXT;")
+                self._conn.execute("COMMIT;")
+            except Exception:
+                if self._conn.in_transaction:
+                    self._conn.execute("ROLLBACK;")
+                raise
+        self._conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_refund_requests_session_id
+            ON refund_requests(session_id);
+            """
+        )
+
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
         """Run a unit of work inside an immediate SQLite transaction."""
@@ -146,6 +173,7 @@ class DatabaseManager:
             "agent_runs",
             "session_messages",
             "refund_audit_logs",
+            "idempotency_records",
         )
         counts: dict[str, int] = {}
         with self._lock:

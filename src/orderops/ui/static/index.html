@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>OrderOps Agent v2.0 — Enterprise Triage & HITL Console</title>
+  <title>OrderOps Agent v2.1.0 — Enterprise Triage &amp; HITL Console</title>
   <style>
     :root {
       --bg-canvas: #F8FAFC;
@@ -102,10 +102,10 @@
     .topbar-inner {
       max-width: 1400px;
       margin: 0 auto;
-      padding: 12px 20px;
+      padding: 9px 20px;
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 8px;
     }
 
     .topbar-row {
@@ -250,8 +250,8 @@
       align-items: center;
       justify-content: center;
       gap: 8px;
-      min-height: 38px;
-      padding: 7px 14px;
+      min-height: 34px;
+      padding: 6px 13px;
       border: none;
       border-radius: 7px;
       background: transparent;
@@ -300,7 +300,7 @@
       width: 100%;
       max-width: 1400px;
       margin: 0 auto;
-      padding: 20px;
+      padding: 14px 20px;
       flex: 1;
       min-width: 0;
     }
@@ -494,18 +494,35 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 10px;
+      gap: 8px;
       flex-wrap: wrap;
-      padding-bottom: 12px;
+      padding-bottom: 10px;
       border-bottom: 1px solid var(--border);
-      margin-bottom: 12px;
+      margin-bottom: 10px;
     }
 
     .session-meta {
       display: flex;
       align-items: center;
-      gap: 8px;
+      gap: 6px;
       flex-wrap: wrap;
+      min-width: 0;
+    }
+
+    .session-fields {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex: 1 1 360px;
+      min-width: 0;
+      flex-wrap: wrap;
+    }
+
+    .idem-group {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+      flex: 1 1 175px;
       min-width: 0;
     }
 
@@ -525,7 +542,7 @@
     }
 
     .preset-section {
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
 
     .preset-label {
@@ -534,21 +551,21 @@
       text-transform: uppercase;
       letter-spacing: 0.05em;
       color: var(--text-secondary);
-      margin-bottom: 8px;
+      margin-bottom: 6px;
     }
 
     .preset-pills {
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 6px;
     }
 
     .preset-pill {
       display: inline-flex;
       align-items: center;
       gap: 6px;
-      min-height: 34px;
-      padding: 5px 11px;
+      min-height: 30px;
+      padding: 4px 10px;
       border-radius: 9999px;
       border: 1px solid var(--border-strong);
       background: var(--bg-canvas);
@@ -577,15 +594,37 @@
     .chat-thread {
       display: flex;
       flex-direction: column;
-      gap: 12px;
-      min-height: 260px;
-      max-height: 420px;
+      gap: 10px;
+      min-height: 180px;
+      max-height: 360px;
       overflow-y: auto;
-      padding: 12px;
+      padding: 10px 12px;
       background: var(--bg-canvas);
       border: 1px solid var(--border);
       border-radius: var(--radius-sm);
-      margin-bottom: 14px;
+      margin-bottom: 10px;
+    }
+
+    @media (min-width: 1041px) {
+      .desk-chat-card {
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 134px);
+        min-height: 500px;
+        max-height: 760px;
+      }
+      .desk-chat-card .card-body {
+        display: flex;
+        flex-direction: column;
+        flex: 1 1 auto;
+        min-height: 0;
+        padding: 12px 16px;
+      }
+      .desk-chat-card .chat-thread {
+        flex: 1 1 auto;
+        min-height: 150px;
+        max-height: none;
+      }
     }
 
     .chat-empty {
@@ -619,6 +658,20 @@
       background: var(--bg-surface);
       border: 1px solid var(--border);
       color: var(--text-primary);
+    }
+
+    .chat-msg.hitl-update {
+      align-self: flex-start;
+      background: #F0FDF4;
+      border: 1px solid var(--emerald-border);
+      border-left: 4px solid var(--emerald-btn);
+      color: var(--text-primary);
+    }
+
+    .chat-msg.hitl-update.rejected {
+      background: #FFF1F2;
+      border-color: var(--rose-border);
+      border-left: 4px solid var(--crimson-btn);
     }
 
     .chat-msg-head {
@@ -670,7 +723,7 @@
     .field-textarea,
     .field-select {
       width: 100%;
-      padding: 9px 11px;
+      padding: 7px 10px;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border-strong);
       background: var(--bg-surface);
@@ -680,14 +733,15 @@
 
     .field-textarea {
       resize: vertical;
-      min-height: 68px;
+      min-height: 54px;
+      max-height: 110px;
     }
 
     .trace-list {
       display: flex;
       flex-direction: column;
       gap: 10px;
-      max-height: 390px;
+      max-height: 270px;
       overflow-y: auto;
     }
 
@@ -780,13 +834,13 @@
       font-weight: 700;
       text-transform: uppercase;
       letter-spacing: 0.04em;
-      padding: 9px 11px;
+      padding: 8px 9px;
       border-bottom: 1px solid var(--border);
       white-space: nowrap;
     }
 
     td {
-      padding: 9px 11px;
+      padding: 8px 9px;
       border-bottom: 1px solid var(--border);
       vertical-align: top;
       color: var(--text-primary);
@@ -1079,7 +1133,7 @@
             <div class="brand-title-wrap">
               <div class="brand-title-line">
                 <h1 class="brand-name">OrderOps Agent</h1>
-                <span class="version-chip">v2.0</span>
+                <span class="version-chip">v2.1.0</span>
               </div>
               <span class="brand-subtitle">Bounded Tool-Calling Triage &amp; Financial Guardrails Console</span>
             </div>
@@ -1134,7 +1188,7 @@
       <section class="tab-panel active" id="panel-desk" role="tabpanel" aria-labelledby="tab-btn-desk">
         <div class="grid-desk">
           <div class="stack-col">
-            <div class="card">
+            <div class="card desk-chat-card">
               <div class="card-header">
                 <div class="card-title-group">
                   <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -1145,29 +1199,61 @@
                     <div class="card-subtitle">Persistent session memory with deterministic 3-layer policy enforcement</div>
                   </div>
                 </div>
-                <button type="button" class="btn btn-sm" id="new-session-btn">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <line x1="12" y1="5" x2="12" y2="19"/>
-                    <line x1="5" y1="12" x2="19" y2="12"/>
-                  </svg>
-                  <span>New Session</span>
-                </button>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <button type="button" class="btn btn-sm" id="refresh-session-btn" title="Refresh session thread">
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <polyline points="23 4 23 10 17 10"/>
+                      <polyline points="1 20 1 14 7 14"/>
+                      <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/>
+                    </svg>
+                    <span>Sync</span>
+                  </button>
+                  <button type="button" class="btn btn-sm" id="new-session-btn">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                      <line x1="12" y1="5" x2="12" y2="19"/>
+                      <line x1="5" y1="12" x2="19" y2="12"/>
+                    </svg>
+                    <span>New Session</span>
+                  </button>
+                </div>
               </div>
 
               <div class="card-body">
+                <div class="alert-banner" id="desk-alert" role="status" style="margin-bottom: 8px; padding: 8px 12px;">
+                  <span id="desk-alert-text"></span>
+                  <button type="button" class="btn btn-sm" id="desk-alert-close">Dismiss</button>
+                </div>
+
                 <div class="session-bar">
                   <div class="session-meta">
                     <span class="session-chip" id="session-id-label">session: -</span>
                     <span class="badge" id="session-turns-badge">0 TURNS</span>
                   </div>
-                  <div style="flex: 1 1 220px; min-width: 0;">
-                    <input
-                      type="email"
-                      class="field-input"
-                      id="customer-email-input"
-                      aria-label="Optional customer email context"
-                      placeholder="Optional customer email (e.g. minh.anh@example.com)"
-                    />
+                  <div class="session-fields">
+                    <div style="flex: 1 1 175px; min-width: 0;">
+                      <input
+                        type="email"
+                        class="field-input"
+                        id="customer-email-input"
+                        aria-label="Optional customer email context"
+                        placeholder="Optional customer email"
+                      />
+                    </div>
+                    <div class="idem-group">
+                      <input
+                        type="text"
+                        class="field-input mono"
+                        id="idempotency-key-input"
+                        aria-label="Optional Idempotency-Key header"
+                        placeholder="Idempotency-Key (optional)"
+                        style="font-size: 12px;"
+                      />
+                      <button type="button" class="btn btn-sm" id="gen-idempotency-btn" title="Generate Idempotency-Key">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                          <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/>
+                        </svg>
+                      </button>
+                    </div>
                   </div>
                 </div>
 
@@ -1530,7 +1616,10 @@
         document.querySelectorAll(".tab-panel").forEach(function (panel) {
           panel.classList.toggle("active", panel.id === "panel-" + tabName);
         });
-        if (tabName === "queue") {
+        if (tabName === "desk") {
+          loadSessionMessages();
+          loadAuditRuns();
+        } else if (tabName === "queue") {
           loadRefundQueue();
         } else if (tabName === "evals") {
           loadLatestEvals();
@@ -1583,9 +1672,16 @@
         updateSessionHeader(userTurns);
 
         thread.innerHTML = messages.map(function (msg) {
-          const roleLabel = msg.role === "user" ? "Customer" : "OrderOps Agent";
+          const isHitlUpdate = msg.intent === "HITL_DECISION" ||
+            (msg.role === "assistant" && String(msg.content || msg.content_masked || "").startsWith("[Supervisor Update]"));
+          const roleLabel = msg.role === "user"
+            ? "Customer"
+            : (isHitlUpdate ? "Supervisor Update" : "OrderOps Agent");
           const badgeHtml = msg.role === "assistant" && msg.resolution_status
             ? renderBadge(msg.resolution_status)
+            : "";
+          const hitlTag = isHitlUpdate
+            ? '<span class="tool-chip">HITL CLOSED LOOP</span>'
             : "";
           const refundChip = msg.refund_id
             ? '<span class="tool-chip">' + escapeHtml(msg.refund_id) + "</span>"
@@ -1593,15 +1689,18 @@
           const runRef = msg.run_id
             ? '<span class="mono">' + escapeHtml(msg.run_id) + "</span>"
             : "";
+          const extraCls = isHitlUpdate
+            ? (" hitl-update" + (msg.resolution_status === "REJECTED" ? " rejected" : ""))
+            : "";
           return (
-            '<div class="chat-msg ' + escapeHtml(msg.role) + '">' +
+            '<div class="chat-msg ' + escapeHtml(msg.role) + extraCls + '">' +
               '<div class="chat-msg-head">' +
                 "<strong>" + escapeHtml(roleLabel) + "</strong>" +
                 badgeHtml +
               "</div>" +
               '<div class="chat-msg-body">' + escapeHtml(msg.content || msg.content_masked || "") + "</div>" +
               (msg.role === "assistant"
-                ? '<div class="chat-msg-foot">' + refundChip + runRef + "</div>"
+                ? '<div class="chat-msg-foot">' + hitlTag + refundChip + runRef + "</div>"
                 : "") +
             "</div>"
           );
@@ -1664,9 +1763,11 @@
         let headerBadge = "";
         let bodyObj = data;
         if (eventName === "guardrail_check") {
-          headerBadge = data.passed
-            ? '<span class="badge badge-auto-approved">LAYER 1 PASSED</span>'
-            : '<span class="badge badge-blocked">BLOCKED BY POLICY</span>';
+          headerBadge = data.idempotent_replay
+            ? '<span class="badge badge-info">IDEMPOTENT REPLAY</span>'
+            : (data.passed
+              ? '<span class="badge badge-auto-approved">LAYER 1 PASSED</span>'
+              : '<span class="badge badge-blocked">BLOCKED BY POLICY</span>');
         } else if (eventName === "tool_call") {
           headerBadge = '<span class="tool-chip">step ' + escapeHtml(data.step) + " &bull; " + escapeHtml(data.tool_name) + "</span>";
           bodyObj = data.arguments || {};
@@ -1697,11 +1798,22 @@
         list.scrollTop = list.scrollHeight;
       }
 
+      function showDeskAlert(kind, text) {
+        const banner = document.getElementById("desk-alert");
+        banner.className = "alert-banner show " + kind;
+        document.getElementById("desk-alert-text").textContent = text;
+      }
+
+      function hideDeskAlert() {
+        document.getElementById("desk-alert").classList.remove("show");
+      }
+
       async function submitChatTurn(messageText) {
         const trimmed = String(messageText || "").trim();
         if (!trimmed || state.isStreaming) {
           return;
         }
+        hideDeskAlert();
         setStreamingUi(true);
         const traceList = document.getElementById("trace-list");
         const traceStatusBadge = document.getElementById("trace-status-badge");
@@ -1736,6 +1848,7 @@
         const assistantBody = assistantEl.querySelector(".chat-msg-body");
         let streamedText = "";
         const emailVal = document.getElementById("customer-email-input").value.trim();
+        const idemKey = document.getElementById("idempotency-key-input").value.trim();
         const payload = {
           message: trimmed,
           session_id: state.sessionId
@@ -1743,16 +1856,30 @@
         if (emailVal) {
           payload.customer_email = emailVal;
         }
+        const headers = { "Content-Type": "application/json" };
+        if (idemKey) {
+          headers["Idempotency-Key"] = idemKey;
+        }
 
         try {
           const response = await fetch("/v1/agent/runs/stream", {
             method: "POST",
-            headers: { "Content-Type": "application/json" },
+            headers: headers,
             body: JSON.stringify(payload)
           });
           if (!response.ok || !response.body) {
-            throw new Error("Stream request failed (HTTP " + response.status + ")");
+            let errMsg = "Stream request failed (HTTP " + response.status + ")";
+            try {
+              const errBody = await response.json();
+              if (errBody && errBody.detail) {
+                errMsg = (response.status === 409 ? "409 Conflict: " : "") + errBody.detail;
+              }
+            } catch (_ignore) {
+              // ignore non-JSON body
+            }
+            throw new Error(errMsg);
           }
+          const isReplay = response.headers.get("X-Idempotent-Replay") === "true";
           const reader = response.body.getReader();
           const decoder = new TextDecoder("utf-8");
           let buffer = "";
@@ -1795,7 +1922,7 @@
                       cls: "badge-info"
                     };
                     traceStatusBadge.className = "badge " + meta.cls;
-                    traceStatusBadge.textContent = meta.text;
+                    traceStatusBadge.textContent = isReplay ? meta.text + " (REPLAY)" : meta.text;
 
                     telemetry.style.display = "grid";
                     document.getElementById("tel-steps").textContent = String((parsed.tool_trace || []).length);
@@ -1807,12 +1934,16 @@
               }
             }
           }
+          if (isReplay) {
+            showDeskAlert("success", "Idempotent replay returned existing result for key '" + idemKey + "' without duplicate execution.");
+          }
           document.getElementById("chat-input").value = "";
           await Promise.all([loadSessionMessages(), loadAuditRuns(), refreshQueueBadge()]);
         } catch (err) {
           traceStatusBadge.className = "badge badge-blocked";
           traceStatusBadge.textContent = "ERROR";
-          assistantBody.textContent = "Request failed: " + err.message;
+          assistantBody.textContent = err.message;
+          showDeskAlert("error", err.message);
         } finally {
           setStreamingUi(false);
         }
@@ -1876,6 +2007,10 @@
                     : "Automatically cleared under deterministic <= 500,000 VND policy gate.") +
                 "</div>";
 
+            const sessionChip = item.session_id
+              ? '<span class="tool-chip">' + escapeHtml(item.session_id) + "</span>"
+              : "";
+
             return (
               '<article class="refund-card" id="card-' + escapeHtml(item.refund_id) + '">' +
                 '<div class="refund-card-top">' +
@@ -1884,6 +2019,7 @@
                     '<span class="tool-chip">' + escapeHtml(item.order_id) + "</span>" +
                     '<span class="tool-chip">' + escapeHtml(item.category) + "</span>" +
                     '<span class="tool-chip">' + escapeHtml(item.customer_tier) + "</span>" +
+                    sessionChip +
                   "</div>" +
                   renderBadge(item.status) +
                 "</div>" +
@@ -1946,11 +2082,14 @@
               reviewer_id: reviewerId
             })
           });
+          const notifySuffix = updated.session_notified && updated.session_id
+            ? " Session " + updated.session_id + " notified."
+            : "";
           showQueueAlert(
             "success",
-            "Refund " + updated.refund_id + " (" + updated.order_id + ") marked " + updated.status + " (order status: " + updated.order_status + ")."
+            "Refund " + updated.refund_id + " (" + updated.order_id + ") marked " + updated.status + " (order status: " + updated.order_status + ")." + notifySuffix
           );
-          await Promise.all([loadRefundQueue(), refreshHealth()]);
+          await Promise.all([loadRefundQueue(), refreshHealth(), loadSessionMessages()]);
         } catch (err) {
           showQueueAlert("error", "Decision failed for " + refundId + ": " + err.message);
           await loadRefundQueue();
@@ -2011,7 +2150,7 @@
             "<tr>" +
               '<td class="mono" style="font-weight:700;">' + escapeHtml(s.id) + "</td>" +
               '<td class="mono">' + escapeHtml(s.category) + "</td>" +
-              '<td style="min-width: 240px;">' + escapeHtml(s.prompt) + "</td>" +
+              '<td style="min-width: 170px;">' + escapeHtml(s.prompt) + "</td>" +
               "<td>" + renderBadge(s.expected_decision) + "</td>" +
               "<td>" + renderBadge(s.actual_decision) + "</td>" +
               "<td>" + toolsHtml + "</td>" +
@@ -2095,9 +2234,17 @@
         });
       });
 
+      document.getElementById("refresh-session-btn").addEventListener("click", loadSessionMessages);
+      document.getElementById("desk-alert-close").addEventListener("click", hideDeskAlert);
+      document.getElementById("gen-idempotency-btn").addEventListener("click", function () {
+        document.getElementById("idempotency-key-input").value = "ik-" + Math.random().toString(16).slice(2, 10);
+      });
+
       document.getElementById("new-session-btn").addEventListener("click", function () {
         state.sessionId = generateSessionId();
         saveSessionId(state.sessionId);
+        hideDeskAlert();
+        document.getElementById("idempotency-key-input").value = "";
         document.getElementById("trace-list").innerHTML =
           '<div class="muted-note">Started new session. Run an agent turn to inspect SSE events.</div>';
         document.getElementById("trace-telemetry").style.display = "none";

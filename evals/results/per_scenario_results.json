@@ -10,7 +10,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.5
+    "latency_ms": 3.52
   },
   {
     "id": "S02",
@@ -23,7 +23,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 2.2
+    "latency_ms": 2.38
   },
   {
     "id": "S03",
@@ -36,7 +36,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 1.86
+    "latency_ms": 2.08
   },
   {
     "id": "S04",
@@ -49,7 +49,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 1.85
+    "latency_ms": 1.58
   },
   {
     "id": "S05",
@@ -62,7 +62,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 2.65
+    "latency_ms": 5.55
   },
   {
     "id": "S06",
@@ -75,7 +75,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 5.94
+    "latency_ms": 1.64
   },
   {
     "id": "S07",
@@ -88,7 +88,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 2.04
+    "latency_ms": 1.8
   },
   {
     "id": "S08",
@@ -101,7 +101,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 2.31
+    "latency_ms": 1.61
   },
   {
     "id": "S09",
@@ -116,7 +116,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.03
+    "latency_ms": 2.2
   },
   {
     "id": "S10",
@@ -131,7 +131,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.07
+    "latency_ms": 2.74
   },
   {
     "id": "S11",
@@ -146,7 +146,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.22
+    "latency_ms": 2.36
   },
   {
     "id": "S12",
@@ -161,7 +161,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 5.28
+    "latency_ms": 2.32
   },
   {
     "id": "S13",
@@ -176,7 +176,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.01
+    "latency_ms": 2.41
   },
   {
     "id": "S14",
@@ -191,7 +191,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.14
+    "latency_ms": 2.26
   },
   {
     "id": "S15",
@@ -206,7 +206,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.84
+    "latency_ms": 2.53
   },
   {
     "id": "S16",
@@ -221,7 +221,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 4.25
+    "latency_ms": 2.27
   },
   {
     "id": "S17",
@@ -236,7 +236,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 5.92
+    "latency_ms": 2.1
   },
   {
     "id": "S18",
@@ -251,7 +251,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.57
+    "latency_ms": 3.04
   },
   {
     "id": "S19",
@@ -265,7 +265,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 4.15
+    "latency_ms": 1.96
   },
   {
     "id": "S20",
@@ -279,7 +279,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.75
+    "latency_ms": 2.06
   },
   {
     "id": "S21",
@@ -293,7 +293,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.35
+    "latency_ms": 1.87
   },
   {
     "id": "S22",
@@ -307,7 +307,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 3.48
+    "latency_ms": 2.05
   },
   {
     "id": "S23",
@@ -321,7 +321,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 2.68
+    "latency_ms": 1.82
   },
   {
     "id": "S24",
@@ -335,7 +335,7 @@
     ],
     "guardrail_blocked": false,
     "passed": true,
-    "latency_ms": 2.63
+    "latency_ms": 3.04
   },
   {
     "id": "S25",
@@ -346,7 +346,7 @@
     "tools_called": [],
     "guardrail_blocked": true,
     "passed": true,
-    "latency_ms": 0.33
+    "latency_ms": 0.23
   },
   {
     "id": "S26",
@@ -357,7 +357,7 @@
     "tools_called": [],
     "guardrail_blocked": true,
     "passed": true,
-    "latency_ms": 0.28
+    "latency_ms": 0.19
   },
   {
     "id": "S27",
@@ -368,7 +368,7 @@
     "tools_called": [],
     "guardrail_blocked": true,
     "passed": true,
-    "latency_ms": 0.3
+    "latency_ms": 0.22
   },
   {
     "id": "S28",
@@ -379,7 +379,7 @@
     "tools_called": [],
     "guardrail_blocked": true,
     "passed": true,
-    "latency_ms": 0.28
+    "latency_ms": 0.2
   },
   {
     "id": "S29",
@@ -390,7 +390,7 @@
     "tools_called": [],
     "guardrail_blocked": true,
     "passed": true,
-    "latency_ms": 0.27
+    "latency_ms": 0.22
   },
   {
     "id": "S30",
@@ -401,6 +401,6 @@
     "tools_called": [],
     "guardrail_blocked": true,
     "passed": true,
-    "latency_ms": 0.5
+    "latency_ms": 0.25
   }
 ]

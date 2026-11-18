@@ -9,9 +9,7 @@ from typing import Any
 
 _EMAIL_RE = re.compile(r"\b([\w.+-]+)@([\w-]+\.[\w.-]+)\b")
 _CARD_RE = re.compile(r"(?<!\d)(?:\d[ -]?){13,18}\d(?!\d)")
-_PHONE_VN_RE = re.compile(
-    r"(?<!\d)(?:\+84|0)(?:3|5|7|8|9)\d{1,2}[\s.-]?\d{3}[\s.-]?\d{3,4}(?!\d)"
-)
+_PHONE_VN_RE = re.compile(r"(?<!\d)(?:\+84|0)(?:3|5|7|8|9)\d{1,2}[\s.-]?\d{3}[\s.-]?\d{3,4}(?!\d)")
 _CCCD_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
 
 

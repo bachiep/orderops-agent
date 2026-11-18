@@ -2,7 +2,7 @@
   "info": {
     "name": "OrderOps Agent API",
     "_postman_id": "f4c19a07-9b14-4d30-9f51-35b1d5ce4a02",
-    "description": "Executable collection covering health checks, seeded orders, auto-refund <= 500k VND, human-approval escalation > 500k VND, deterministic policy rejections, adversarial prompt-injection blocking, SSE trace streaming, and PII-redacted audit logs.",
+    "description": "Executable collection covering health checks, seeded orders, auto-refund <= 500k VND, human-approval escalation > 500k VND, Idempotency-Key replay & 409 conflict checks, closed-loop HITL session notifications, adversarial prompt-injection blocking, SSE trace streaming, and PII-redacted audit logs.",
     "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
   },
   "variable": [
@@ -144,7 +144,22 @@
       }
     },
     {
-      "name": "14. Latest 30-Scenario Evaluation Drilldown",
+      "name": "14. Direct Refund Submission (Idempotency-Key)",
+      "request": {
+        "method": "POST",
+        "header": [
+          { "key": "Content-Type", "value": "application/json" },
+          { "key": "Idempotency-Key", "value": "ik-demo-ord1008-001" }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"order_id\": \"ORD-1008\",\n  \"amount_vnd\": 1290000,\n  \"reason\": \"Mechanical switches double-typing on E and R keys.\",\n  \"reason_code\": \"defective\",\n  \"session_id\": \"sess_demo_001\"\n}"
+        },
+        "url": "{{baseUrl}}/v1/refunds"
+      }
+    },
+    {
+      "name": "15. Latest 30-Scenario Evaluation Drilldown",
       "request": {
         "method": "GET",
         "url": "{{baseUrl}}/v1/evals/latest"

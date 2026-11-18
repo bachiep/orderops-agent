@@ -140,9 +140,7 @@ def _collect_tool_history(messages: list[dict[str, Any]]) -> list[tuple[str, dic
             raw_content = msg.get("content", "{}")
             try:
                 parsed = (
-                    json.loads(raw_content)
-                    if isinstance(raw_content, str)
-                    else dict(raw_content)
+                    json.loads(raw_content) if isinstance(raw_content, str) else dict(raw_content)
                 )
             except json.JSONDecodeError:
                 parsed = {}
@@ -174,9 +172,7 @@ class LocalPlannerLLMProvider(AgentModelProvider):
 
         tool_history = _collect_tool_history(messages)
         explicit_order_match = _ORDER_ID_RE.search(latest_user)
-        explicit_order_id = (
-            explicit_order_match.group(1).upper() if explicit_order_match else None
-        )
+        explicit_order_id = explicit_order_match.group(1).upper() if explicit_order_match else None
         prior_order_id: str | None = None
         for prior_msg in reversed(prior_messages):
             match = _ORDER_ID_RE.search(str(prior_msg.get("content", "")))

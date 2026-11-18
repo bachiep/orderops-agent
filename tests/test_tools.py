@@ -5,9 +5,12 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
+
 from orderops.config import Settings
-from orderops.db import DatabaseManager
+from orderops.db import DatabaseManager, IdempotencyConflictError
 from orderops.tools import OrderOpsToolset, ToolRegistry, build_default_registry
+from orderops.tools.schemas import CreateRefundRequestInput
 from scripts.seed_demo_db import seed_demo_database
 
 
@@ -174,5 +177,48 @@ def test_registry_handles_invalid_args_and_unknown_tools_gracefully() -> None:
         unknown = registry.execute("drop_database", {})
         assert unknown.ok is False
         assert unknown.error == "UNKNOWN_TOOL:drop_database"
+    finally:
+        db.close()
+
+
+def test_toolset_create_refund_request_enforces_service_idempotency(tmp_path: Path) -> None:
+    fixed_now = datetime(2026, 11, 18, 12, 0, 0, tzinfo=UTC)
+    db = DatabaseManager(tmp_path / "service_idem.db")
+    seed_demo_database(db, now=fixed_now)
+    toolset = OrderOpsToolset(db=db, settings=Settings(), now_provider=lambda: fixed_now)
+    try:
+        req = CreateRefundRequestInput(
+            order_id="ORD-1002",
+            amount_vnd=1_850_000,
+            reason="Headphones have static audio",
+            reason_code="defective",
+        )
+        first = toolset.create_refund_request(
+            req,
+            session_id="sess-svc-1",
+            idempotency_key="svc-key-1",
+        )
+        assert first.created is True
+        assert first.idempotent_replay is False
+
+        replay = toolset.create_refund_request(
+            req,
+            session_id="sess-svc-1",
+            idempotency_key="svc-key-1",
+        )
+        assert replay.refund_id == first.refund_id
+        assert replay.idempotent_replay is True
+
+        with pytest.raises(IdempotencyConflictError):
+            toolset.create_refund_request(
+                CreateRefundRequestInput(
+                    order_id="ORD-1002",
+                    amount_vnd=1_000_000,
+                    reason="Headphones have static audio",
+                    reason_code="defective",
+                ),
+                session_id="sess-svc-1",
+                idempotency_key="svc-key-1",
+            )
     finally:
         db.close()

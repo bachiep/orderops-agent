@@ -342,8 +342,7 @@ class AgentRunner:
                 )
                 exec_res = self.registry.execute(tc.name, tc.arguments)
                 is_domain_reject = (
-                    tc.name == "create_refund_request"
-                    and exec_res.output.get("created") is False
+                    tc.name == "create_refund_request" and exec_res.output.get("created") is False
                 )
                 if not exec_res.ok or is_domain_reject:
                     failed_call_counts[canonical_key] = failed_call_counts.get(canonical_key, 0) + 1

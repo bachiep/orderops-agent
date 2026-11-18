@@ -89,9 +89,7 @@ class ToolRegistry:
 
         try:
             args_dict = (
-                json.loads(raw_arguments)
-                if isinstance(raw_arguments, str)
-                else dict(raw_arguments)
+                json.loads(raw_arguments) if isinstance(raw_arguments, str) else dict(raw_arguments)
             )
             validated = tool.input_model.model_validate(args_dict)
             result_model = tool.handler(validated)
