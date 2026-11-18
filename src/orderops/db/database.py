@@ -35,10 +35,74 @@ class DatabaseManager:
         return conn
 
     def init_schema(self) -> None:
-        """Create all tables and indexes if they do not exist."""
+        """Create all tables and indexes if they do not exist and migrate v1 tables safely."""
         with self._lock:
             for stmt in SCHEMA_STATEMENTS:
                 self._conn.execute(stmt)
+            self._migrate_refund_requests_if_needed()
+
+    def _migrate_refund_requests_if_needed(self) -> None:
+        row = self._conn.execute(
+            "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'refund_requests';"
+        ).fetchone()
+        if row is None:
+            return
+        ddl = str(row["sql"] or "")
+        if "'APPROVED'" in ddl and "reviewed_at" in ddl:
+            return
+
+        self._conn.execute("PRAGMA foreign_keys = OFF;")
+        try:
+            self._conn.execute("BEGIN IMMEDIATE;")
+            self._conn.execute(
+                """
+                CREATE TABLE refund_requests_v2 (
+                    refund_id TEXT PRIMARY KEY,
+                    order_id TEXT NOT NULL REFERENCES orders(order_id) ON DELETE RESTRICT,
+                    customer_id TEXT NOT NULL REFERENCES customers(customer_id) ON DELETE RESTRICT,
+                    amount_vnd INTEGER NOT NULL CHECK (amount_vnd > 0),
+                    reason_code TEXT NOT NULL,
+                    reason_detail TEXT NOT NULL,
+                    status TEXT NOT NULL CHECK (
+                        status IN (
+                            'AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL', 'APPROVED', 'REJECTED'
+                        )
+                    ),
+                    requires_human_review INTEGER NOT NULL CHECK (requires_human_review IN (0, 1)),
+                    created_at TEXT NOT NULL,
+                    reviewed_at TEXT,
+                    reviewer_note TEXT,
+                    reviewer_id TEXT
+                );
+                """
+            )
+            self._conn.execute(
+                """
+                INSERT INTO refund_requests_v2 (
+                    refund_id, order_id, customer_id, amount_vnd,
+                    reason_code, reason_detail, status, requires_human_review, created_at
+                )
+                SELECT refund_id, order_id, customer_id, amount_vnd,
+                       reason_code, reason_detail, status, requires_human_review, created_at
+                FROM refund_requests;
+                """
+            )
+            self._conn.execute("DROP TABLE refund_requests;")
+            self._conn.execute("ALTER TABLE refund_requests_v2 RENAME TO refund_requests;")
+            self._conn.execute(
+                """
+                CREATE UNIQUE INDEX IF NOT EXISTS idx_unique_active_refund_order
+                ON refund_requests(order_id)
+                WHERE status IN ('AUTO_APPROVED', 'PENDING_HUMAN_APPROVAL', 'APPROVED');
+                """
+            )
+            self._conn.execute("COMMIT;")
+        except Exception:
+            if self._conn.in_transaction:
+                self._conn.execute("ROLLBACK;")
+            raise
+        finally:
+            self._conn.execute("PRAGMA foreign_keys = ON;")
 
     @contextmanager
     def transaction(self) -> Iterator[sqlite3.Connection]:
@@ -74,7 +138,15 @@ class DatabaseManager:
 
     def get_table_counts(self) -> dict[str, int]:
         """Return row counts across core domain tables."""
-        tables = ("customers", "return_policies", "orders", "refund_requests", "agent_runs")
+        tables = (
+            "customers",
+            "return_policies",
+            "orders",
+            "refund_requests",
+            "agent_runs",
+            "session_messages",
+            "refund_audit_logs",
+        )
         counts: dict[str, int] = {}
         with self._lock:
             for table in tables:

@@ -7,17 +7,30 @@ from typing import Any
 from orderops.db.database import DatabaseManager
 from orderops.db.schema import SCHEMA_STATEMENTS
 
+_AUDIT_EXPORTS = frozenset(
+    {
+        "RefundAlreadyDecidedError",
+        "RefundNotFoundError",
+        "decide_refund_request",
+        "get_session_history_for_llm",
+        "get_session_messages",
+        "list_demo_orders",
+        "list_recent_agent_runs",
+        "list_refund_requests",
+        "list_sessions",
+        "persist_agent_run",
+    }
+)
+
 __all__ = [
     "DatabaseManager",
     "SCHEMA_STATEMENTS",
-    "list_demo_orders",
-    "list_recent_agent_runs",
-    "persist_agent_run",
+    *sorted(_AUDIT_EXPORTS),
 ]
 
 
 def __getattr__(name: str) -> Any:
-    if name in ("list_demo_orders", "list_recent_agent_runs", "persist_agent_run"):
+    if name in _AUDIT_EXPORTS:
         from orderops.db import audit
 
         return getattr(audit, name)

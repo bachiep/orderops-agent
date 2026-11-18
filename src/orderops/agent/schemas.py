@@ -66,6 +66,7 @@ class TriageResolution(BaseModel):
     """Validated final structured output of an OrderOps Agent run."""
 
     run_id: str
+    session_id: str | None = None
     intent: IntentType
     summary: str
     tool_trace: list[ToolTraceStep] = Field(default_factory=list)

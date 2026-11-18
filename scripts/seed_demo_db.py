@@ -324,6 +324,18 @@ def seed_demo_database(
             _iso(ref_now - timedelta(days=15)),
             "VNPOST-881012",
         ),
+        (
+            "ORD-1013",
+            "CUST-004",
+            "Wireless ANC Studio Earbuds",
+            "electronics",
+            1,
+            650_000,
+            "REFUND_PENDING",
+            _iso(ref_now - timedelta(days=5)),
+            _iso(ref_now - timedelta(days=2)),
+            "GHN-881013",
+        ),
     ]
 
     seeded_refunds = [
@@ -338,10 +350,23 @@ def seed_demo_database(
             0,
             _iso(ref_now - timedelta(days=5)),
         ),
+        (
+            "RFD-SEED-002",
+            "ORD-1013",
+            "CUST-004",
+            650_000,
+            "defective",
+            "Right channel audio cuts out intermittently during playback (VIP electronics return)",
+            "PENDING_HUMAN_APPROVAL",
+            1,
+            _iso(ref_now - timedelta(hours=4)),
+        ),
     ]
 
     with db.transaction() as conn:
         if reset:
+            conn.execute("DELETE FROM session_messages;")
+            conn.execute("DELETE FROM refund_audit_logs;")
             conn.execute("DELETE FROM agent_runs;")
             conn.execute("DELETE FROM refund_requests;")
             conn.execute("DELETE FROM orders;")

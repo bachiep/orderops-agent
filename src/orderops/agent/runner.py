@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any
 
 from pydantic import ValidationError
@@ -46,6 +46,7 @@ def _parse_model_resolution(
     raw_content: str | None,
     *,
     run_id: str,
+    session_id: str | None = None,
     tool_trace: list[ToolTraceStep],
     guardrail_flags: list[str],
     latency_ms: float,
@@ -82,6 +83,7 @@ def _parse_model_resolution(
     try:
         return TriageResolution(
             run_id=run_id,
+            session_id=session_id,
             intent=intent,
             summary=summary,
             tool_trace=tool_trace,
@@ -96,6 +98,7 @@ def _parse_model_resolution(
     except ValidationError:
         return TriageResolution(
             run_id=run_id,
+            session_id=session_id,
             intent="UNKNOWN",
             summary=summary,
             tool_trace=tool_trace,
@@ -128,20 +131,31 @@ class AgentRunner:
         self.registry = registry
         self.settings = settings or Settings()
 
-    async def run(self, request: AgentRunRequest) -> TriageResolution:
+    async def run(
+        self,
+        request: AgentRunRequest,
+        *,
+        history: Sequence[Mapping[str, Any]] | None = None,
+    ) -> TriageResolution:
         """Execute a run to completion and return the validated TriageResolution."""
         final_resolution: TriageResolution | None = None
-        async for event in self.run_stream(request):
+        async for event in self.run_stream(request, history=history):
             if event.event == "run_completed":
                 final_resolution = TriageResolution.model_validate(event.data)
         if final_resolution is None:  # pragma: no cover - invariant
             raise RuntimeError("Agent stream ended without a run_completed event.")
         return final_resolution
 
-    async def run_stream(self, request: AgentRunRequest) -> AsyncIterator[AgentStreamEvent]:
+    async def run_stream(
+        self,
+        request: AgentRunRequest,
+        *,
+        history: Sequence[Mapping[str, Any]] | None = None,
+    ) -> AsyncIterator[AgentStreamEvent]:
         """Stream structured execution events from guardrail checks through completion."""
         started = time.perf_counter()
         run_id = f"run_{uuid.uuid4().hex[:12]}"
+        session_id = request.session_id.strip() if request.session_id else None
         user_text = request.message.strip()
         if request.customer_email and request.customer_email not in user_text:
             user_text = f"{user_text}\n[customer_email: {request.customer_email}]"
@@ -155,6 +169,7 @@ class AgentRunner:
             extra={
                 "structured_data": {
                     "run_id": run_id,
+                    "session_id": session_id,
                     "guard_allowed": input_guard.allowed,
                     "flags": input_guard.flags,
                     "preview": input_guard.masked_preview,
@@ -174,6 +189,7 @@ class AgentRunner:
             elapsed_ms = (time.perf_counter() - started) * 1000.0
             blocked = TriageResolution(
                 run_id=run_id,
+                session_id=session_id,
                 intent="BLOCKED_ADVERSARIAL",
                 summary=input_guard.reason or "Request blocked by input guardrail.",
                 tool_trace=[],
@@ -193,10 +209,14 @@ class AgentRunner:
             )
             return
 
-        messages: list[dict[str, Any]] = [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": user_text},
-        ]
+        messages: list[dict[str, Any]] = [{"role": "system", "content": SYSTEM_PROMPT}]
+        if history:
+            for item in history:
+                role = item.get("role")
+                content = str(item.get("content", "")).strip()
+                if role in ("user", "assistant") and content:
+                    messages.append({"role": role, "content": content})
+        messages.append({"role": "user", "content": user_text})
         tool_schemas = self.registry.get_openai_tools_schema()
         tool_trace: list[ToolTraceStep] = []
         guardrail_flags: list[str] = list(input_guard.flags)
@@ -216,6 +236,7 @@ class AgentRunner:
                 )
                 resolution = TriageResolution(
                     run_id=run_id,
+                    session_id=session_id,
                     intent="UNKNOWN",
                     summary="Agent stopped because the per-run token budget was exceeded.",
                     tool_trace=tool_trace,
@@ -249,6 +270,7 @@ class AgentRunner:
                 raw_resolution = _parse_model_resolution(
                     model_resp.content,
                     run_id=run_id,
+                    session_id=session_id,
                     tool_trace=tool_trace,
                     guardrail_flags=guardrail_flags,
                     latency_ms=elapsed_ms,
@@ -293,6 +315,7 @@ class AgentRunner:
                     )
                     resolution = TriageResolution(
                         run_id=run_id,
+                        session_id=session_id,
                         intent="UNKNOWN",
                         summary=(
                             f"Stopped loop after repeated failing call to '{tc.name}' "
@@ -365,6 +388,7 @@ class AgentRunner:
         )
         resolution = TriageResolution(
             run_id=run_id,
+            session_id=session_id,
             intent="UNKNOWN",
             summary=f"Agent halted safely after reaching max_steps={self.settings.max_steps}.",
             tool_trace=tool_trace,

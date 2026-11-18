@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     aux_port: int = Field(default=6332)
 
     database_path: str = Field(default="./data/orderops.db")
+    eval_results_dir: str = Field(default="./evals/results")
 
     llm_provider: str = Field(default="local")
     llm_model: str = Field(default="gpt-4o-mini")

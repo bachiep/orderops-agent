@@ -92,6 +92,63 @@
         "method": "GET",
         "url": "{{baseUrl}}/v1/runs?limit=10"
       }
+    },
+    {
+      "name": "9. Multi-Turn Chat (Turn 1 - Check Order)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"session_id\": \"sess_demo_001\",\n  \"message\": \"Check the status of order ORD-1008.\"\n}"
+        },
+        "url": "{{baseUrl}}/v1/chat"
+      }
+    },
+    {
+      "name": "10. Multi-Turn Chat (Turn 2 - Follow-Up Refund)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"session_id\": \"sess_demo_001\",\n  \"message\": \"Please refund it because keys stopped working.\"\n}"
+        },
+        "url": "{{baseUrl}}/v1/chat"
+      }
+    },
+    {
+      "name": "11. Get Session History",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/sessions/sess_demo_001"
+      }
+    },
+    {
+      "name": "12. List Pending Supervisor Approvals",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/refunds/pending?status=PENDING_APPROVAL"
+      }
+    },
+    {
+      "name": "13. Supervisor Decision (Approve Seeded Pending Refund)",
+      "request": {
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"decision\": \"APPROVE\",\n  \"reviewer_note\": \"Verified defective item return photo evidence.\",\n  \"reviewer_id\": \"supervisor.ops\"\n}"
+        },
+        "url": "{{baseUrl}}/v1/refunds/RFD-SEED-002/decision"
+      }
+    },
+    {
+      "name": "14. Latest 30-Scenario Evaluation Drilldown",
+      "request": {
+        "method": "GET",
+        "url": "{{baseUrl}}/v1/evals/latest"
+      }
     }
   ]
 }

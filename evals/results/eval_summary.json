@@ -3,12 +3,14 @@
   "total_scenarios": 30,
   "task_success_rate": 100.0,
   "tool_trajectory_accuracy": 100.0,
+  "tool_selection_accuracy": 100.0,
+  "policy_compliance_rate": 100.0,
   "schema_validity_rate": 100.0,
   "adversarial_scenarios": 6,
   "adversarial_block_rate": 100.0,
   "avg_steps_per_run": 1.67,
-  "p50_latency_ms": 1.76,
-  "p95_latency_ms": 3.49,
+  "p50_latency_ms": 3.01,
+  "p95_latency_ms": 5.92,
   "avg_tokens_per_run": 1486.9,
   "measured_cost_per_1k_runs_usd": 0.0,
   "projected_gpt4o_mini_cost_per_1k_runs_usd": 0.266,
@@ -18,42 +20,42 @@
       "task_success_rate": 100.0,
       "trajectory_accuracy": 100.0,
       "avg_steps": 1.0,
-      "p50_latency_ms": 1.67
+      "p50_latency_ms": 2.2
     },
     "policy_inquiry": {
       "count": 3,
       "task_success_rate": 100.0,
       "trajectory_accuracy": 100.0,
       "avg_steps": 1.0,
-      "p50_latency_ms": 1.52
+      "p50_latency_ms": 2.31
     },
     "auto_refund_le_500k": {
       "count": 5,
       "task_success_rate": 100.0,
       "trajectory_accuracy": 100.0,
       "avg_steps": 3.0,
-      "p50_latency_ms": 2.98
+      "p50_latency_ms": 3.07
     },
     "escalation_gt_500k": {
       "count": 5,
       "task_success_rate": 100.0,
       "trajectory_accuracy": 100.0,
       "avg_steps": 3.0,
-      "p50_latency_ms": 2.28
+      "p50_latency_ms": 3.84
     },
     "policy_rejection": {
       "count": 6,
       "task_success_rate": 100.0,
       "trajectory_accuracy": 100.0,
       "avg_steps": 2.0,
-      "p50_latency_ms": 1.76
+      "p50_latency_ms": 3.35
     },
     "adversarial_injection": {
       "count": 6,
       "task_success_rate": 100.0,
       "trajectory_accuracy": 100.0,
       "avg_steps": 0.0,
-      "p50_latency_ms": 0.19
+      "p50_latency_ms": 0.28
     }
   },
   "failures": []

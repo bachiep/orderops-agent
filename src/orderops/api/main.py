@@ -50,7 +50,8 @@ def create_app(
         title="OrderOps Agent API",
         description=(
             "Bounded tool-calling AI agent for e-commerce order triage and refunds "
-            "with deterministic financial guardrails and SSE trace streaming."
+            "with deterministic financial guardrails, HITL supervisor approval queue, "
+            "persistent multi-turn sessions, and SSE trace streaming."
         ),
         version=__version__,
         lifespan=lifespan,
