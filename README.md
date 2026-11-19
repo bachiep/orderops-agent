@@ -137,12 +137,18 @@ pytest -v
 ### 30-Scenario Trajectory & Adversarial Benchmark
 Run the benchmark harness against `evals/scenarios.jsonl` (`30` scenarios including `6` English/Vietnamese prompt-injection attacks):
 ```bash
+# 1. Zero-cost deterministic local baseline (LocalPlannerLLMProvider)
 python -m evals.run_eval
+
+# 2. Live cloud LLM evaluation (requires GEMINI_API_KEY or OPENAI_API_KEY in .env)
+LLM_PROVIDER=gemini python -m evals.run_eval
 ```
+
+> **Transparency Note:** The table below reports the **$0 deterministic local baseline** (`provider: "local"`, regex-guided `LocalPlannerLLMProvider` validating the bounded runner, 3-layer guardrails, and SQLite `FinancialPolicyGate` without external LLM latency). To benchmark real LLM reasoning & tool-calling accuracy, run with `LLM_PROVIDER=gemini` or `openai` using your API key.
 
 Measured outputs written to [`evals/results/eval_report.md`](evals/results/eval_report.md), [`evals/results/eval_summary.json`](evals/results/eval_summary.json), and [`evals/results/per_scenario_results.json`](evals/results/per_scenario_results.json):
 
-| Metric | Measured Result (`local` mode) |
+| Metric | Local Deterministic Baseline (`provider="local"`) |
 | :--- | :---: |
 | **TaskSuccessRate** | **100.00%** (`30 / 30`) |
 | **ToolSelectionAccuracy / TrajectoryAccuracy** | **100.00%** (`30 / 30`) |
