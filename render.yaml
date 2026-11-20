@@ -1,0 +1,11 @@
+services:
+  - type: web
+    name: orderops-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: LLM_PROVIDER
+        value: local
+      - key: DATABASE_PATH
+        value: ./data/orderops.db

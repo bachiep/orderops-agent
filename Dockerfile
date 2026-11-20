@@ -21,4 +21,4 @@ USER appuser
 
 EXPOSE 8302 8502
 
-CMD ["sh", "-c", "python -m scripts.seed_demo_db && uvicorn orderops.api.main:app --host 0.0.0.0 --port 8302"]
+CMD ["sh", "-c", "python -m scripts.seed_demo_db && uvicorn orderops.api.main:app --host 0.0.0.0 --port ${PORT:-8302}"]
